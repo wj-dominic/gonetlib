@@ -1,19 +1,20 @@
-package netserver
+package message
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 )
-
-type bytes	[]byte
 
 const (
 	HEADER_SIZE		= 5
 	PAYLOAD_SIZE	= 300
 	MAX_SIZE		= HEADER_SIZE + PAYLOAD_SIZE
+
+	ENC_CODE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 )
 
 type Message struct{
-	Buffer	bytes
+	Buffer	[]byte
 
 	Front	uint32
 	Rear	uint32
@@ -23,7 +24,7 @@ type Message struct{
 
 func NewMessage(isLittleEndian bool) *Message {
 	var msg = Message{
-		Buffer: make(bytes, MAX_SIZE),
+		Buffer: make([]byte, MAX_SIZE),
 
 		Front: HEADER_SIZE,
 		Rear:  HEADER_SIZE,
@@ -37,8 +38,13 @@ func NewMessage(isLittleEndian bool) *Message {
 	return &msg
 }
 
-func (msg *Message) GetData() bytes{
-	return msg.Buffer
+func (msg *Message) GetBuffer() *[]byte{
+	return &msg.Buffer
+}
+
+func (msg *Message) GetPayloadBuffer() *[]byte{
+	tmpBuffer := msg.Buffer[HEADER_SIZE:]
+	return &tmpBuffer
 }
 
 func (msg *Message) GetLength() int {
@@ -47,8 +53,8 @@ func (msg *Message) GetLength() int {
 
 func (msg *Message) Push(value interface{}) uint32 {
 	var pushSize uint32
-	var tmpBuffer bytes
-	tmpBuffer = make(bytes, MAX_SIZE)
+	var tmpBuffer []byte
+	tmpBuffer = make([]byte, MAX_SIZE)
 
 	switch value.(type){
 	case bool, byte:
@@ -72,10 +78,10 @@ func (msg *Message) Push(value interface{}) uint32 {
 		msg.Push(length)
 		pushSize = uint32(copy(tmpBuffer, value.(string)))
 		break
-	case bytes:
-		length := uint16(len(value.(bytes)))
+	case []byte:
+		length := uint16(len(value.([]byte)))
 		msg.Push(length)
-		pushSize = uint32(copy(tmpBuffer, value.(bytes)))
+		pushSize = uint32(copy(tmpBuffer, value.([]byte)))
 		break
 	default:
 		return 0
@@ -93,7 +99,7 @@ func (msg *Message) Push(value interface{}) uint32 {
 
 func (msg *Message) Peek(out_value interface{}) uint32{
 	var peekSize uint32
-	var tmpBuffer bytes
+	var tmpBuffer []byte
 
 	switch out_value.(type){
 	case *bool, *byte:
@@ -127,11 +133,11 @@ func (msg *Message) Peek(out_value interface{}) uint32{
 		*pOutValue = string(tmpBuffer)
 		peekSize = uint32(length)
 		break
-	case *bytes:
+	case *[]byte:
 		var length uint16
 		msg.Pop(&length)
 		tmpBuffer = msg.Buffer[msg.Front : msg.Front + uint32(length)]
-		pOutValue := out_value.(*bytes)
+		pOutValue := out_value.(*[]byte)
 		*pOutValue = tmpBuffer
 		peekSize = uint32(length)
 		break
@@ -152,9 +158,45 @@ func (msg *Message) Pop(out_value interface{}) uint32 {
 
 
 func (msg *Message) Encode() {
+	//페이로드만 암호화
+	encoding := base64.NewEncoding(ENC_CODE)
 
+	payload := msg.Buffer[HEADER_SIZE:msg.Rear]
+	encodingLength := encoding.EncodedLen(len(payload))
+
+	encodedBuffer := make([]byte, encodingLength)
+
+	encoding.Encode(encodedBuffer, payload)
+
+	msg._Clear()
+	copy(msg.Buffer[HEADER_SIZE:], encodedBuffer)
+	msg.Rear += uint32(encodingLength)
 }
 
+func (msg *Message) Decode() {
+	//페이로드만 복호화
+	encoding := base64.NewEncoding(ENC_CODE)
+
+	payload := msg.Buffer[HEADER_SIZE:msg.Rear]
+	decodingLength := encoding.DecodedLen(len(payload))
+
+	decodedBuffer := make([]byte, decodingLength)
+
+	encoding.Decode(decodedBuffer, payload)
+
+	msg._Clear()
+	copy(msg.Buffer[HEADER_SIZE:], decodedBuffer)
+	msg.Rear += uint32(decodingLength)
+}
+
+func (msg *Message) _Clear() {
+	for i := range msg.Buffer{
+		msg.Buffer[i] = 0
+	}
+
+	msg.Front = HEADER_SIZE
+	msg.Rear = HEADER_SIZE
+}
 
 func (msg *Message) _GetFreeLength() uint32 {
 	tempFront := msg.Front
