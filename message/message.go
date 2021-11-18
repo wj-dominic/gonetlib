@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	mathRand "math/rand"
-	"reflect"
 )
 
 
@@ -78,7 +77,6 @@ func (msg *Message) GetLength() int {
 	return len(msg.Buffer)
 }
 
-
 func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 	var header Header
 	header.packetType = packetType
@@ -87,9 +85,7 @@ func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 	header.payloadLength = uint16(msg.GetPayloadLength())
 	header.checkSum = msg._GenerateChecksum()
 
-	headerBytes := msg._PackHeader(header)
-
-	copy(msg.Buffer[:HEADER_SIZE], headerBytes)
+	msg._PackHeader(header) //pragma pack(1)
 }
 
 
@@ -257,28 +253,11 @@ func (msg *Message) _GenerateChecksum() uint8{
 	return uint8(total % 256)
 }
 
-func (msg *Message) _PackHeader(header Header) []byte {
-
-	headerType := reflect.TypeOf(header)
-
-	totalSize := 0
-	for i, max := 0, headerType.NumField() ; i < max ; i++ {
-		fieldType := headerType.Field(i).Type
-		fieldSize := int(fieldType.Size())
-		totalSize += fieldSize
-	}
-
-
-	headerBuffer := make([]byte, totalSize)
-
-	headerBuffer[0] = byte(header.packetType)
-	headerBuffer[1] = byte(header.cryptoType)
-	headerBuffer[2] = header.randKey
-	tmpPayloadBuffer := []byte{0,0}
-	msg.Order.PutUint16(tmpPayloadBuffer, header.payloadLength)
-	copy(headerBuffer[3:4], tmpPayloadBuffer)
-	headerBuffer[5] = header.checkSum
-
-	return headerBuffer
+func (msg *Message) _PackHeader(header Header) {
+	msg.Buffer[0] = byte(header.packetType)
+	msg.Buffer[1] = byte(header.cryptoType)
+	msg.Buffer[2] = header.randKey
+	msg.Order.PutUint16(msg.Buffer[3:5], header.payloadLength)
+	msg.Buffer[5] = header.checkSum
 }
 
