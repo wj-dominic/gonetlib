@@ -1,16 +1,39 @@
 package message
 
 import (
-	"encoding/base64"
+	cryptoRand "crypto/rand"
+	"crypto/rsa"
 	"encoding/binary"
+	mathRand "math/rand"
+	"reflect"
 )
 
+
+type PacketType uint8
+const(
+	SYN 		PacketType = 1 + iota //공개키 주고 받음
+	SYN_ACK			//패킷 코드, 키 주고 받음 (XOR 용), 이 패킷은 RSA 암호화가 기본
+	ESTABLISHED 	//이 패킷은 연결된 후 패킷, 여기서부터는 서로 공개키와 패킷 코드, 키를 알고 있으므로 인코딩은 선택하면됨
+)
+
+type CryptoType uint8
 const (
-	HEADER_SIZE		= 5
+	XOR CryptoType = 1 + iota
+	RSA
+)
+
+type Header struct{
+	packetType		PacketType
+	cryptoType	 	CryptoType
+	randKey			uint8
+	payloadLength	uint16
+	checkSum		uint8
+}
+
+const (
+	HEADER_SIZE		= 6
 	PAYLOAD_SIZE	= 300
 	MAX_SIZE		= HEADER_SIZE + PAYLOAD_SIZE
-
-	ENC_CODE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 )
 
 type Message struct{
@@ -47,9 +70,28 @@ func (msg *Message) GetPayloadBuffer() *[]byte{
 	return &tmpBuffer
 }
 
+func (msg *Message) GetPayloadLength() uint32{
+	return msg.Rear - msg.Front
+}
+
 func (msg *Message) GetLength() int {
 	return len(msg.Buffer)
 }
+
+
+func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
+	var header Header
+	header.packetType = packetType
+	header.cryptoType = cryptoType
+	header.randKey = uint8(mathRand.Intn(256))
+	header.payloadLength = uint16(msg.GetPayloadLength())
+	header.checkSum = msg._GenerateChecksum()
+
+	headerBytes := msg._PackHeader(header)
+
+	copy(msg.Buffer[:HEADER_SIZE], headerBytes)
+}
+
 
 func (msg *Message) Push(value interface{}) uint32 {
 	var pushSize uint32
@@ -156,38 +198,36 @@ func (msg *Message) Pop(out_value interface{}) uint32 {
 	return popSize
 }
 
+func (msg *Message) EncodeRSA(clntPublicKey *rsa.PublicKey){
+	cipherMsg, err := rsa.EncryptPKCS1v15(cryptoRand.Reader, clntPublicKey, msg.Buffer)
+	if err != nil{
+		//TODO_MSG :: 로그 추가 필요
+		return
+	}
 
-func (msg *Message) Encode() {
-	//페이로드만 암호화
-	encoding := base64.NewEncoding(ENC_CODE)
-
-	payload := msg.Buffer[HEADER_SIZE:msg.Rear]
-	encodingLength := encoding.EncodedLen(len(payload))
-
-	encodedBuffer := make([]byte, encodingLength)
-
-	encoding.Encode(encodedBuffer, payload)
+	cipherMsgLength := len(cipherMsg)
 
 	msg._Clear()
-	copy(msg.Buffer[HEADER_SIZE:], encodedBuffer)
-	msg.Rear += uint32(encodingLength)
+	copy(msg.Buffer, cipherMsg)
+	msg.Rear += uint32(cipherMsgLength)
 }
 
-func (msg *Message) Decode() {
-	//페이로드만 복호화
-	encoding := base64.NewEncoding(ENC_CODE)
+func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
+	plainMsg, err := rsa.DecryptPKCS1v15(cryptoRand.Reader, servPrivateKey, msg.Buffer)
+	if err != nil {
+		//TODO_MSG :: 로그 추가 필요
+		return
+	}
 
-	payload := msg.Buffer[HEADER_SIZE:msg.Rear]
-	decodingLength := encoding.DecodedLen(len(payload))
 
-	decodedBuffer := make([]byte, decodingLength)
 
-	encoding.Decode(decodedBuffer, payload)
+	plainMsgLength := len(plainMsg)
 
 	msg._Clear()
-	copy(msg.Buffer[HEADER_SIZE:], decodedBuffer)
-	msg.Rear += uint32(decodingLength)
+	copy(msg.Buffer, plainMsg)
+	msg.Rear += uint32(plainMsgLength)
 }
+
 
 func (msg *Message) _Clear() {
 	for i := range msg.Buffer{
@@ -204,3 +244,41 @@ func (msg *Message) _GetFreeLength() uint32 {
 
 	return (PAYLOAD_SIZE - 1) - (tempRear - tempFront)
 }
+
+func (msg *Message) _GenerateChecksum() uint8{
+	var total uint32
+
+	payload := msg.Buffer[msg.Front:msg.Rear]
+
+	for i := range payload{
+		total += uint32(payload[i])
+	}
+
+	return uint8(total % 256)
+}
+
+func (msg *Message) _PackHeader(header Header) []byte {
+
+	headerType := reflect.TypeOf(header)
+
+	totalSize := 0
+	for i, max := 0, headerType.NumField() ; i < max ; i++ {
+		fieldType := headerType.Field(i).Type
+		fieldSize := int(fieldType.Size())
+		totalSize += fieldSize
+	}
+
+
+	headerBuffer := make([]byte, totalSize)
+
+	headerBuffer[0] = byte(header.packetType)
+	headerBuffer[1] = byte(header.cryptoType)
+	headerBuffer[2] = header.randKey
+	tmpPayloadBuffer := []byte{0,0}
+	msg.Order.PutUint16(tmpPayloadBuffer, header.payloadLength)
+	copy(headerBuffer[3:4], tmpPayloadBuffer)
+	headerBuffer[5] = header.checkSum
+
+	return headerBuffer
+}
+
