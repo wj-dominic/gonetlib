@@ -1,6 +1,9 @@
 package session
 
-import "net"
+import (
+	. "message"
+	"net"
+)
 
 type Session struct{
 	sessionID	uint64			//세션 ID

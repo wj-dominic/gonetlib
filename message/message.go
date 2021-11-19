@@ -87,9 +87,9 @@ func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 	header.cryptoType = cryptoType
 	header.randKey = uint8(mathRand.Intn(256))
 	header.payloadLength = uint16(msg.GetPayloadLength())
-	header.checkSum = msg._GenerateChecksum()
+	header.checkSum = msg.generateChecksum()
 
-	msg._PackHeader(header) //pragma pack(1)
+	msg.packHeader(header) //pragma pack(1)
 }
 
 
@@ -129,7 +129,7 @@ func (msg *Message) Push(value interface{}) uint32 {
 		return 0
 	}
 
-	if msg._GetFreeLength() < pushSize {
+	if msg.getFreeLength() < pushSize {
 		return 0
 	}
 
@@ -199,7 +199,7 @@ func (msg *Message) Pop(out_value interface{}) uint32 {
 }
 
 func (msg *Message) EncodeXOR(key uint8){
-	if msg._IsCryptoType(XOR) != true {
+	if msg.isCryptoType(XOR) != true {
 		//TODO_MSG :: 로그 삽입
 		return
 	}
@@ -215,7 +215,7 @@ func (msg *Message) EncodeXOR(key uint8){
 }
 
 func (msg *Message) DecodeXOR(key uint8){
-	if msg._IsCryptoType(XOR) != true {
+	if msg.isCryptoType(XOR) != true {
 		//TODO_MSG :: 로그 삽입
 		return
 	}
@@ -231,7 +231,7 @@ func (msg *Message) DecodeXOR(key uint8){
 
 	//체크섬 확인
 	recvChecksum := dstBuffer[0]
-	generatedChecksum := msg._GenerateChecksum()
+	generatedChecksum := msg.generateChecksum()
 	if recvChecksum != generatedChecksum {
 		//TODO_MSG :: 로그 삽입
 		log.Fatalln("mismatch check sum : ", recvChecksum, generatedChecksum)
@@ -240,7 +240,7 @@ func (msg *Message) DecodeXOR(key uint8){
 }
 
 func (msg *Message) EncodeRSA(clntPublicKey *rsa.PublicKey){
-	if msg._IsCryptoType(RSA) != true {
+	if msg.isCryptoType(RSA) != true {
 		//TODO_MSG :: 로그 삽입
 		return
 	}
@@ -253,13 +253,13 @@ func (msg *Message) EncodeRSA(clntPublicKey *rsa.PublicKey){
 
 	cipherMsgLength := len(cipherMsg)
 
-	msg._Clear()
+	msg.clear()
 	copy(msg.Buffer, cipherMsg)
 	msg.Rear += uint32(cipherMsgLength)
 }
 
 func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
-	if msg._IsCryptoType(RSA) != true {
+	if msg.isCryptoType(RSA) != true {
 		//TODO_MSG :: 로그 삽입
 		return
 	}
@@ -272,12 +272,12 @@ func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
 
 	plainMsgLength := len(plainMsg)
 
-	msg._Clear()
+	msg.clear()
 	copy(msg.Buffer, plainMsg)
 	msg.Rear += uint32(plainMsgLength)
 }
 
-func (msg *Message) _Clear() {
+func (msg *Message) clear() {
 	for i := range msg.Buffer{
 		msg.Buffer[i] = 0
 	}
@@ -286,14 +286,14 @@ func (msg *Message) _Clear() {
 	msg.Rear = HEADER_SIZE
 }
 
-func (msg *Message) _GetFreeLength() uint32 {
+func (msg *Message) getFreeLength() uint32 {
 	tempFront := msg.Front
 	tempRear := msg.Rear
 
 	return (PAYLOAD_SIZE - 1) - (tempRear - tempFront)
 }
 
-func (msg *Message) _GenerateChecksum() uint8{
+func (msg *Message) generateChecksum() uint8{
 	var total uint32
 
 	payload := msg.Buffer[msg.Front:msg.Rear]
@@ -305,7 +305,7 @@ func (msg *Message) _GenerateChecksum() uint8{
 	return uint8(total % 256)
 }
 
-func (msg *Message) _PackHeader(header Header) {
+func (msg *Message) packHeader(header Header) {
 	msg.Buffer[0] = byte(header.packetType)
 	msg.Buffer[1] = byte(header.cryptoType)
 	msg.Buffer[2] = header.randKey
@@ -313,6 +313,6 @@ func (msg *Message) _PackHeader(header Header) {
 	msg.Buffer[5] = header.checkSum
 }
 
-func (msg *Message) _IsCryptoType(cryptoType CryptoType) bool {
+func (msg *Message) isCryptoType(cryptoType CryptoType) bool {
 	return CryptoType(msg.Buffer[1]) == cryptoType
 }
