@@ -4,6 +4,7 @@ import (
 	cryptoRand "crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
+	"log"
 	mathRand "math/rand"
 )
 
@@ -60,13 +61,16 @@ func NewMessage(isLittleEndian bool) *Message {
 	return &msg
 }
 
-func (msg *Message) GetBuffer() *[]byte{
-	return &msg.Buffer
+func (msg *Message) GetBuffer() []byte{
+	return msg.Buffer
 }
 
-func (msg *Message) GetPayloadBuffer() *[]byte{
-	tmpBuffer := msg.Buffer[HEADER_SIZE:]
-	return &tmpBuffer
+func (msg *Message) GetHeaderBuffer() []byte{
+	return msg.Buffer[:HEADER_SIZE]
+}
+
+func (msg *Message) GetPayloadBuffer() []byte{
+	return msg.Buffer[HEADER_SIZE:]
 }
 
 func (msg *Message) GetPayloadLength() uint32{
@@ -194,7 +198,53 @@ func (msg *Message) Pop(out_value interface{}) uint32 {
 	return popSize
 }
 
+func (msg *Message) EncodeXOR(key uint8){
+	if msg._IsCryptoType(XOR) != true {
+		//TODO_MSG :: 로그 삽입
+		return
+	}
+
+	randKey := msg.Buffer[2]
+	dstBuffer := msg.Buffer[HEADER_SIZE - 1 : msg.Rear]
+
+	num := uint32(1)
+	for i := range dstBuffer {
+		p := dstBuffer[i] ^ uint8(uint32(randKey) + num)
+		dstBuffer[i] = p ^ uint8(uint32(key) + num)
+	}
+}
+
+func (msg *Message) DecodeXOR(key uint8){
+	if msg._IsCryptoType(XOR) != true {
+		//TODO_MSG :: 로그 삽입
+		return
+	}
+
+	randKey := msg.Buffer[2]
+	dstBuffer := msg.Buffer[HEADER_SIZE - 1 : msg.Rear]
+
+	num := uint32(1)
+	for i := range dstBuffer {
+		p := dstBuffer[i] ^ uint8(uint32(key) + num)
+		dstBuffer[i] = p ^ uint8(uint32(randKey) + num)
+	}
+
+	//체크섬 확인
+	recvChecksum := dstBuffer[0]
+	generatedChecksum := msg._GenerateChecksum()
+	if recvChecksum != generatedChecksum {
+		//TODO_MSG :: 로그 삽입
+		log.Fatalln("mismatch check sum : ", recvChecksum, generatedChecksum)
+		return;
+	}
+}
+
 func (msg *Message) EncodeRSA(clntPublicKey *rsa.PublicKey){
+	if msg._IsCryptoType(RSA) != true {
+		//TODO_MSG :: 로그 삽입
+		return
+	}
+
 	cipherMsg, err := rsa.EncryptPKCS1v15(cryptoRand.Reader, clntPublicKey, msg.Buffer)
 	if err != nil{
 		//TODO_MSG :: 로그 추가 필요
@@ -209,13 +259,16 @@ func (msg *Message) EncodeRSA(clntPublicKey *rsa.PublicKey){
 }
 
 func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
+	if msg._IsCryptoType(RSA) != true {
+		//TODO_MSG :: 로그 삽입
+		return
+	}
+
 	plainMsg, err := rsa.DecryptPKCS1v15(cryptoRand.Reader, servPrivateKey, msg.Buffer)
 	if err != nil {
 		//TODO_MSG :: 로그 추가 필요
 		return
 	}
-
-
 
 	plainMsgLength := len(plainMsg)
 
@@ -223,7 +276,6 @@ func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
 	copy(msg.Buffer, plainMsg)
 	msg.Rear += uint32(plainMsgLength)
 }
-
 
 func (msg *Message) _Clear() {
 	for i := range msg.Buffer{
@@ -261,3 +313,6 @@ func (msg *Message) _PackHeader(header Header) {
 	msg.Buffer[5] = header.checkSum
 }
 
+func (msg *Message) _IsCryptoType(cryptoType CryptoType) bool {
+	return CryptoType(msg.Buffer[1]) == cryptoType
+}

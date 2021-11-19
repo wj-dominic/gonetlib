@@ -1,27 +1,85 @@
 package message_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"message"
 	"testing"
 )
 
-func TestMessage(t *testing.T) {
+/*
+1. 메시지 객체 생성
+2. 메시지에 데이터 삽입
+3. 메시지에 헤더 세팅
+4. 메시지 암호화
+5. 메시지 전송
+*/
+
+func TestMsgEncodingXOR(t *testing.T) {
 	msg := message.NewMessage(true)
 
-	msg.Push("test")
+	msg.Push("it is test code")
+	msg.Push("next code")
 
 	msg.SetHeader(message.SYN, message.XOR)
 
 	fmt.Println("buffer : ", msg.GetBuffer())
 
+	msg.EncodeXOR(0xa9)
+
+	fmt.Println("encoded from xor : ", msg.GetBuffer())
+
+	msg.DecodeXOR(0xa9)
+
+	fmt.Println("decoded from xor : ", msg.GetBuffer())
+
 	var testMsg string
+	msg.Pop(&testMsg)
+	fmt.Println(testMsg)
 
 	msg.Pop(&testMsg)
-
 	fmt.Println(testMsg)
 
 	if msg == nil{
 		t.Fail()
 	}
+}
+
+func TestMsgEncodingRSA(t *testing.T) {
+	msg := message.NewMessage(true)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fail()
+	}
+
+	publicKey := privateKey.PublicKey
+
+	msg.Push("it is test code")
+	msg.Push("next code")
+
+	msg.SetHeader(message.SYN, message.RSA)
+
+	fmt.Println("buffer : ", msg.GetBuffer())
+
+	msg.EncodeRSA(&publicKey)
+
+	fmt.Println("encoded from rsa : ", msg.GetBuffer())
+
+	msg.DecodeRSA(privateKey)
+
+	fmt.Println("decoded from rsa : ", msg.GetBuffer())
+
+	var testMsg string
+	msg.Pop(&testMsg)
+	fmt.Println(testMsg)
+
+	msg.Pop(&testMsg)
+	fmt.Println(testMsg)
+
+	if msg == nil{
+		t.Fail()
+	}
+
 }
