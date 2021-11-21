@@ -1,9 +1,9 @@
 package commandcenter
 
 import (
-	. "message"
-	. "scv"
-	. "session"
+	. "gonetlib/message"
+	. "gonetlib/scv"
+	. "gonetlib/session"
 )
 
 type CommandCenter struct{
@@ -22,6 +22,7 @@ func NewCommandCenter(scvCount... uint32) *CommandCenter {
 }
 
 func (center *CommandCenter) OnRecv(session *Session, msg *Message) {
+
 
 
 

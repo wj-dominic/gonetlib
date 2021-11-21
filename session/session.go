@@ -1,8 +1,8 @@
 package session
 
 import (
-	. "message"
-	. "ringbuffer"
+	. "gonetlib/message"
+	. "gonetlib/ringbuffer"
 	"net"
 )
 
