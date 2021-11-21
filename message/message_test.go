@@ -1,10 +1,9 @@
-package message_test
+package message
 
 import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"message"
 	"testing"
 )
 
@@ -17,12 +16,12 @@ import (
 */
 
 func TestMsgEncodingXOR(t *testing.T) {
-	msg := message.NewMessage(true)
+	msg := NewMessage(true)
 
 	msg.Push("it is test code")
 	msg.Push("next code")
 
-	msg.SetHeader(message.SYN, message.XOR)
+	msg.SetHeader(SYN, XOR)
 
 	fmt.Println("buffer : ", msg.GetBuffer())
 
@@ -47,7 +46,7 @@ func TestMsgEncodingXOR(t *testing.T) {
 }
 
 func TestMsgEncodingRSA(t *testing.T) {
-	msg := message.NewMessage(true)
+	msg := NewMessage(true)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -59,7 +58,7 @@ func TestMsgEncodingRSA(t *testing.T) {
 	msg.Push("it is test code")
 	msg.Push("next code")
 
-	msg.SetHeader(message.SYN, message.RSA)
+	msg.SetHeader(SYN, RSA)
 
 	fmt.Println("buffer : ", msg.GetBuffer())
 
