@@ -12,12 +12,15 @@ type Level uint32
 const (
 	Error = 0 + iota
 	Warning
+	Info
 	Debug
-	Notice
 	Max
 )
 
+var levelStr = [4]string{"ERROR", "WARNING", "INFO", "DEBUG"}
+
 type Logger struct {
+	logFile   *os.File
 	level     Level
 	directory string
 	logName   string
@@ -31,16 +34,16 @@ func NewLogger(level Level, dir string, logName string) *Logger {
 	}
 
 	if len(logName) == 0 {
-		fileName := os.Args[0]
-		logName = fileName[:len(fileName)-len(filepath.Ext(fileName))] + ".log"
+		logName = filepath.Base(os.Args[0])
+		logName = logName[:len(logName)-len(filepath.Ext(logName))] + ".log"
 	}
 
 	msg := make(chan string)
-
 	stop := make(chan bool)
 
 	return &Logger{
-		level:     Error,
+		logFile:   nil,
+		level:     level,
 		directory: dir,
 		logName:   logName,
 		msg:       msg,
@@ -48,20 +51,56 @@ func NewLogger(level Level, dir string, logName string) *Logger {
 	}
 }
 
-func (l *Logger) Start() {
+func (l *Logger) Start() error {
+	err := l.setDirectory()
+	if err != nil {
+		return err
+	}
+
+	logFile, err := os.OpenFile(l.directory+"/"+l.logName, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	l.logFile = logFile
+
 	go l.loggerProc()
+
+	return nil
 }
 
 func (l *Logger) Stop() {
 	l.stop <- true
+	l.logFile.Close()
 }
 
-func (l *Logger) Log(msg string) {
-	l.msg <- msg
+func (l *Logger) Error(msg string) {
+	l.log(Error, msg)
+}
+
+func (l *Logger) Warn(msg string) {
+	l.log(Warning, msg)
+}
+
+func (l *Logger) Info(msg string) {
+	l.log(Info, msg)
+}
+
+func (l *Logger) Debug(msg string) {
+	l.log(Debug, msg)
+}
+
+func (l *Logger) log(level Level, msg string) {
+	if level > l.level {
+		return
+	}
+
+	log := fmt.Sprintf("[%s][%s]%s\n", time.Now().Format("2006-01-02 15:04:05"), levelStr[level], msg)
+	l.msg <- log
 }
 
 func (l *Logger) loggerProc() {
-	ticker := time.NewTicker(time.Second)
+	// TODO: ticker duration 변경 가능하도록
+	ticker := time.NewTicker(time.Second * 3)
 
 	for {
 		select {
@@ -77,7 +116,7 @@ func (l *Logger) writeLog() {
 	for {
 		select {
 		case msg := <-l.msg:
-			fmt.Println(msg)
+			l.logFile.WriteString(msg)
 		default:
 			return
 		}
@@ -88,10 +127,20 @@ func (l *Logger) SetLevel(level Level) {
 	l.level = level
 }
 
-func (l *Logger) SetDirectory(dir string) {
-	l.directory = dir
+func (l *Logger) setDirectory() error {
+	if isExistFile(l.directory) {
+		return nil
+	}
+
+	err := os.MkdirAll(l.directory, os.ModePerm)
+
+	return err
 }
 
-func (l *Logger) SetLogName(logName string) {
-	l.logName = logName
+func isExistFile(name string) bool {
+	if _, err := os.Stat(name); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
 }
