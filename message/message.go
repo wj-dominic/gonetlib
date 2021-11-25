@@ -31,54 +31,54 @@ type Header struct{
 }
 
 const (
-	HEADER_SIZE		= 6
-	PAYLOAD_SIZE	= 300
-	MAX_SIZE		= HEADER_SIZE + PAYLOAD_SIZE
+	HeaderSize  = 6
+	PayloadSize = 300
+	MaxSize     = HeaderSize + PayloadSize
 )
 
 type Message struct{
-	Buffer	[]byte
+	buffer []byte
 
-	Front	uint32
-	Rear	uint32
+	front uint32
+	rear  uint32
 
-	Order	binary.ByteOrder
+	order binary.ByteOrder
 }
 
 func NewMessage(isLittleEndian bool) *Message {
 	var msg = Message{
-		Buffer: make([]byte, MAX_SIZE),
+		buffer: make([]byte, MaxSize),
 
-		Front: HEADER_SIZE,
-		Rear:  HEADER_SIZE,
+		front: HeaderSize,
+		rear:  HeaderSize,
 
-		Order: binary.LittleEndian,
+		order: binary.LittleEndian,
 	}
 	if isLittleEndian == false {
-		msg.Order = binary.BigEndian
+		msg.order = binary.BigEndian
 	}
 
 	return &msg
 }
 
 func (msg *Message) GetBuffer() []byte{
-	return msg.Buffer
+	return msg.buffer
 }
 
 func (msg *Message) GetHeaderBuffer() []byte{
-	return msg.Buffer[:HEADER_SIZE]
+	return msg.buffer[:HeaderSize]
 }
 
 func (msg *Message) GetPayloadBuffer() []byte{
-	return msg.Buffer[HEADER_SIZE:]
+	return msg.buffer[HeaderSize:]
 }
 
 func (msg *Message) GetPayloadLength() uint32{
-	return msg.Rear - msg.Front
+	return msg.rear - msg.front
 }
 
 func (msg *Message) GetLength() int {
-	return len(msg.Buffer)
+	return len(msg.buffer)
 }
 
 func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
@@ -96,7 +96,7 @@ func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 func (msg *Message) Push(value interface{}) uint32 {
 	var pushSize uint32
 	var tmpBuffer []byte
-	tmpBuffer = make([]byte, MAX_SIZE)
+	tmpBuffer = make([]byte, MaxSize)
 
 	switch value.(type){
 	case bool, byte:
@@ -104,15 +104,15 @@ func (msg *Message) Push(value interface{}) uint32 {
 		pushSize = 1
 		break
 	case uint16, int16:
-		msg.Order.PutUint16(tmpBuffer, value.(uint16))
+		msg.order.PutUint16(tmpBuffer, value.(uint16))
 		pushSize = 2
 		break
 	case uint32, int32:
-		msg.Order.PutUint32(tmpBuffer, value.(uint32))
+		msg.order.PutUint32(tmpBuffer, value.(uint32))
 		pushSize = 4
 		break
 	case uint64, int64:
-		msg.Order.PutUint64(tmpBuffer, value.(uint64))
+		msg.order.PutUint64(tmpBuffer, value.(uint64))
 		pushSize = 8
 		break
 	case string:
@@ -133,8 +133,8 @@ func (msg *Message) Push(value interface{}) uint32 {
 		return 0
 	}
 
-	copy(msg.Buffer[msg.Rear:], tmpBuffer)
-	msg.Rear += pushSize
+	copy(msg.buffer[msg.rear:], tmpBuffer)
+	msg.rear += pushSize
 
 	return pushSize
 }
@@ -146,31 +146,31 @@ func (msg *Message) Peek(out_value interface{}) uint32{
 	switch out_value.(type){
 	case *bool, *byte:
 		pOutValue := out_value.(*byte)
-		*pOutValue = msg.Buffer[msg.Front]
+		*pOutValue = msg.buffer[msg.front]
 		peekSize = 1
 		break
 	case *uint16, *int16:
-		tmpBuffer = msg.Buffer[msg.Front : msg.Front + 2]
+		tmpBuffer = msg.buffer[msg.front : msg.front+ 2]
 		pOutValue := out_value.(*uint16)
-		*pOutValue = msg.Order.Uint16(tmpBuffer)
+		*pOutValue = msg.order.Uint16(tmpBuffer)
 		peekSize = 2
 		break
 	case *uint32, *int32:
-		tmpBuffer = msg.Buffer[msg.Front : msg.Front + 4]
+		tmpBuffer = msg.buffer[msg.front : msg.front+ 4]
 		pOutValue := out_value.(*uint32)
-		*pOutValue = msg.Order.Uint32(tmpBuffer)
+		*pOutValue = msg.order.Uint32(tmpBuffer)
 		peekSize = 4
 		break
 	case *uint64, *int64:
-		tmpBuffer = msg.Buffer[msg.Front : msg.Front + 8]
+		tmpBuffer = msg.buffer[msg.front : msg.front+ 8]
 		pOutValue := out_value.(*uint64)
-		*pOutValue = msg.Order.Uint64(tmpBuffer)
+		*pOutValue = msg.order.Uint64(tmpBuffer)
 		peekSize = 8
 		break
 	case *string:
 		var length uint16
 		msg.Pop(&length)
-		tmpBuffer = msg.Buffer[msg.Front : msg.Front + uint32(length)]
+		tmpBuffer = msg.buffer[msg.front : msg.front+ uint32(length)]
 		pOutValue := out_value.(*string)
 		*pOutValue = string(tmpBuffer)
 		peekSize = uint32(length)
@@ -178,7 +178,7 @@ func (msg *Message) Peek(out_value interface{}) uint32{
 	case *[]byte:
 		var length uint16
 		msg.Pop(&length)
-		tmpBuffer = msg.Buffer[msg.Front : msg.Front + uint32(length)]
+		tmpBuffer = msg.buffer[msg.front : msg.front+ uint32(length)]
 		pOutValue := out_value.(*[]byte)
 		*pOutValue = tmpBuffer
 		peekSize = uint32(length)
@@ -193,7 +193,7 @@ func (msg *Message) Peek(out_value interface{}) uint32{
 func (msg *Message) Pop(out_value interface{}) uint32 {
 	popSize := msg.Peek(out_value)
 
-	msg.Front += popSize
+	msg.front += popSize
 
 	return popSize
 }
@@ -204,8 +204,8 @@ func (msg *Message) EncodeXOR(key uint8){
 		return
 	}
 
-	randKey := msg.Buffer[2]
-	dstBuffer := msg.Buffer[HEADER_SIZE - 1 : msg.Rear]
+	randKey := msg.buffer[2]
+	dstBuffer := msg.buffer[HeaderSize- 1 : msg.rear]
 
 	num := uint32(1)
 	for i := range dstBuffer {
@@ -220,8 +220,8 @@ func (msg *Message) DecodeXOR(key uint8){
 		return
 	}
 
-	randKey := msg.Buffer[2]
-	dstBuffer := msg.Buffer[HEADER_SIZE - 1 : msg.Rear]
+	randKey := msg.buffer[2]
+	dstBuffer := msg.buffer[HeaderSize- 1 : msg.rear]
 
 	num := uint32(1)
 	for i := range dstBuffer {
@@ -245,7 +245,7 @@ func (msg *Message) EncodeRSA(clntPublicKey *rsa.PublicKey){
 		return
 	}
 
-	cipherMsg, err := rsa.EncryptPKCS1v15(cryptoRand.Reader, clntPublicKey, msg.Buffer)
+	cipherMsg, err := rsa.EncryptPKCS1v15(cryptoRand.Reader, clntPublicKey, msg.buffer)
 	if err != nil{
 		//TODO_MSG :: 로그 추가 필요
 		return
@@ -254,8 +254,8 @@ func (msg *Message) EncodeRSA(clntPublicKey *rsa.PublicKey){
 	cipherMsgLength := len(cipherMsg)
 
 	msg.clear()
-	copy(msg.Buffer, cipherMsg)
-	msg.Rear += uint32(cipherMsgLength)
+	copy(msg.buffer, cipherMsg)
+	msg.rear += uint32(cipherMsgLength)
 }
 
 func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
@@ -264,7 +264,7 @@ func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
 		return
 	}
 
-	plainMsg, err := rsa.DecryptPKCS1v15(cryptoRand.Reader, servPrivateKey, msg.Buffer)
+	plainMsg, err := rsa.DecryptPKCS1v15(cryptoRand.Reader, servPrivateKey, msg.buffer)
 	if err != nil {
 		//TODO_MSG :: 로그 추가 필요
 		return
@@ -273,30 +273,30 @@ func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
 	plainMsgLength := len(plainMsg)
 
 	msg.clear()
-	copy(msg.Buffer, plainMsg)
-	msg.Rear += uint32(plainMsgLength)
+	copy(msg.buffer, plainMsg)
+	msg.rear += uint32(plainMsgLength)
 }
 
 func (msg *Message) clear() {
-	for i := range msg.Buffer{
-		msg.Buffer[i] = 0
+	for i := range msg.buffer {
+		msg.buffer[i] = 0
 	}
 
-	msg.Front = HEADER_SIZE
-	msg.Rear = HEADER_SIZE
+	msg.front = HeaderSize
+	msg.rear = HeaderSize
 }
 
 func (msg *Message) getFreeLength() uint32 {
-	tempFront := msg.Front
-	tempRear := msg.Rear
+	tempFront := msg.front
+	tempRear := msg.rear
 
-	return (PAYLOAD_SIZE - 1) - (tempRear - tempFront)
+	return (PayloadSize - 1) - (tempRear - tempFront)
 }
 
 func (msg *Message) generateChecksum() uint8{
 	var total uint32
 
-	payload := msg.Buffer[msg.Front:msg.Rear]
+	payload := msg.buffer[msg.front:msg.rear]
 
 	for i := range payload{
 		total += uint32(payload[i])
@@ -306,13 +306,13 @@ func (msg *Message) generateChecksum() uint8{
 }
 
 func (msg *Message) packHeader(header Header) {
-	msg.Buffer[0] = byte(header.packetType)
-	msg.Buffer[1] = byte(header.cryptoType)
-	msg.Buffer[2] = header.randKey
-	msg.Order.PutUint16(msg.Buffer[3:5], header.payloadLength)
-	msg.Buffer[5] = header.checkSum
+	msg.buffer[0] = byte(header.packetType)
+	msg.buffer[1] = byte(header.cryptoType)
+	msg.buffer[2] = header.randKey
+	msg.order.PutUint16(msg.buffer[3:5], header.payloadLength)
+	msg.buffer[5] = header.checkSum
 }
 
 func (msg *Message) isCryptoType(cryptoType CryptoType) bool {
-	return CryptoType(msg.Buffer[1]) == cryptoType
+	return CryptoType(msg.buffer[1]) == cryptoType
 }
