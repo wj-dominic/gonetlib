@@ -1,28 +1,35 @@
 package gym
 
-import "sync"
+import (
+	. "gonetlib/singleton"
+)
 
-var gymManager *GymManager = nil
-var once sync.Once
+const (
+	GymsName string = "GYM"
+)
 
 type GymManager struct {
 	gyms	map[GymType]*Gym
 }
 
-func newGyms() *GymManager {
-	return &GymManager{
+func newGyms() {
+	s := GetSingleton()
+
+	gymManager := &GymManager{
 		gyms : make(map[GymType]*Gym),
 	}
+
+	s.SetInstance(GymsName, gymManager)
 }
 
-func GetInstance() *GymManager {
-	once.Do(func() {
-		if gymManager == nil {
-			gymManager = newGyms()
-		}
-	})
+func GetGyms() *GymManager {
+	s := GetSingleton()
 
-	return gymManager
+	if s.GetInstance(GymsName) == nil {
+		newGyms()
+	}
+
+	return s.GetInstance(GymsName).(*GymManager)
 }
 
 func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, routineCount uint8) bool {
