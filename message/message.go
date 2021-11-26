@@ -31,9 +31,9 @@ type Header struct{
 }
 
 const (
-	HeaderSize  = 6
-	PayloadSize = 300
-	MaxSize     = HeaderSize + PayloadSize
+	headerSize  = 6
+	payloadSize = 300
+	bufferSize  = headerSize + payloadSize
 )
 
 type Message struct{
@@ -47,10 +47,10 @@ type Message struct{
 
 func NewMessage(isLittleEndian bool) *Message {
 	var msg = Message{
-		buffer: make([]byte, MaxSize),
+		buffer: make([]byte, bufferSize),
 
-		front: HeaderSize,
-		rear:  HeaderSize,
+		front: headerSize,
+		rear:  headerSize,
 
 		order: binary.LittleEndian,
 	}
@@ -66,11 +66,11 @@ func (msg *Message) GetBuffer() []byte{
 }
 
 func (msg *Message) GetHeaderBuffer() []byte{
-	return msg.buffer[:HeaderSize]
+	return msg.buffer[:headerSize]
 }
 
 func (msg *Message) GetPayloadBuffer() []byte{
-	return msg.buffer[HeaderSize:]
+	return msg.buffer[headerSize:]
 }
 
 func (msg *Message) GetPayloadLength() uint32{
@@ -96,7 +96,7 @@ func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 func (msg *Message) Push(value interface{}) uint32 {
 	var pushSize uint32
 	var tmpBuffer []byte
-	tmpBuffer = make([]byte, MaxSize)
+	tmpBuffer = make([]byte, bufferSize)
 
 	switch value.(type){
 	case bool, byte:
@@ -205,7 +205,7 @@ func (msg *Message) EncodeXOR(key uint8){
 	}
 
 	randKey := msg.buffer[2]
-	dstBuffer := msg.buffer[HeaderSize- 1 : msg.rear]
+	dstBuffer := msg.buffer[headerSize- 1 : msg.rear]
 
 	num := uint32(1)
 	for i := range dstBuffer {
@@ -221,7 +221,7 @@ func (msg *Message) DecodeXOR(key uint8){
 	}
 
 	randKey := msg.buffer[2]
-	dstBuffer := msg.buffer[HeaderSize- 1 : msg.rear]
+	dstBuffer := msg.buffer[headerSize- 1 : msg.rear]
 
 	num := uint32(1)
 	for i := range dstBuffer {
@@ -282,15 +282,15 @@ func (msg *Message) clear() {
 		msg.buffer[i] = 0
 	}
 
-	msg.front = HeaderSize
-	msg.rear = HeaderSize
+	msg.front = headerSize
+	msg.rear = headerSize
 }
 
 func (msg *Message) getFreeLength() uint32 {
 	tempFront := msg.front
 	tempRear := msg.rear
 
-	return (PayloadSize - 1) - (tempRear - tempFront)
+	return (payloadSize - 1) - (tempRear - tempFront)
 }
 
 func (msg *Message) generateChecksum() uint8{

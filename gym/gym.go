@@ -10,17 +10,17 @@ const (
 )
 
 type Gym struct{
-	name       string
-	centerType GymType
+	name       	string
+	gymType		GymType
 
 	routines 	[]chan string //TODO : routine 패키지 제작 필요
-	trainers 	[]Trainer     //TODO : routine 처리 스레드 제작 필요
+	trainers 	[]*Trainer     //TODO : routine 처리 스레드 제작 필요
 }
 
 func NewGym(gymName string, gymType GymType) *Gym {
 	return &Gym{
 		name : gymName,
-		centerType: gymType,
+		gymType: gymType,
 
 		trainers: nil,
 	}
@@ -38,7 +38,12 @@ func (gym *Gym) Create(routineCount uint8, trainerCount uint8) bool {
 	}
 
 	gym.routines = make([]chan string, routineCount)
-	gym.trainers = make([]Trainer, trainerCount)
+	gym.trainers = make([]*Trainer, trainerCount)
+
+	for index := range gym.trainers {
+		id := uint8(index)
+		gym.trainers[index] = NewTrainer(id)
+	}
 
 	return true
 }

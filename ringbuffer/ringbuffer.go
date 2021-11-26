@@ -7,56 +7,73 @@ import (
 )
 
 const (
-	BUFF_SIZE uint32 = 4096 //4kb
+	bufferSize uint32 = 4096 //4kb
 )
 
 type RingBuffer struct{
-	Buffer	[]byte
+	buffer []byte
 
-	Front	uint32
-	Rear	uint32
-	Capacity uint32
+	front    	uint32
+	rear 		uint32
+	cap  		uint32
 
-	Order	binary.ByteOrder
+	order binary.ByteOrder
 }
 
 func NewRingBuffer(isLittleEndian bool, size ...uint32) *RingBuffer{
-	bufferSize := BUFF_SIZE
+	bufferSize := bufferSize
 	if len(size) > 0{
 		bufferSize = size[0]
 	}
 
 	ring := RingBuffer{
-		Buffer : make([]byte, bufferSize),
+		buffer: make([]byte, bufferSize),
 
-		Front : 0,
-		Rear : 0,
-		Capacity: bufferSize - 1, //한칸은 뺌
+		front: 0,
+		rear:  0,
+		cap:   bufferSize - 1, //한칸은 뺌
 
-		Order : binary.LittleEndian,
+		order: binary.LittleEndian,
 	}
 
 	if isLittleEndian == false {
-		ring.Order = binary.BigEndian
+		ring.order = binary.BigEndian
 	}
 
 	return &ring
 }
 
+func (ring *RingBuffer) Clear() {
+	ring.front = bufferSize
+	ring.rear = bufferSize
+}
+
 func (ring *RingBuffer) GetRearBuffer() []byte {
-	return ring.Buffer[ring.Rear:]
+	if ring.IsFull() == true {
+		return nil
+	}
+
+	directWriteSize := ring.getDirectWriteSize()
+
+	return ring.buffer[ring.rear : ring.rear + directWriteSize]
 }
 
 func (ring *RingBuffer) GetFrontBuffer() []byte {
-	return ring.Buffer[ring.Front : ring.Rear]
+	if ring.IsEmpty() == true {
+		return nil
+	}
+
+	directReadSize := ring.getDirectReadSize()
+
+	return ring.buffer[ring.front : ring.front + directReadSize]
 }
 
 func (ring *RingBuffer) IsEmpty() bool {
-	return ring.Front == ring.Rear
+	return ring.front == ring.rear
 }
 
 func (ring *RingBuffer) IsFull() bool {
-	return ring.Rear + 1 == ring.Front
+	return ring.rear+ 1 == ring.front
 }
 
 func (ring *RingBuffer) Write(value interface{}) uint32 {
@@ -71,15 +88,15 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 		pushSize = 1
 		break
 	case uint16, int16:
-		ring.Order.PutUint16(tmpBuffer, value.(uint16))
+		ring.order.PutUint16(tmpBuffer, value.(uint16))
 		pushSize = 2
 		break
 	case uint32, int32:
-		ring.Order.PutUint32(tmpBuffer, value.(uint32))
+		ring.order.PutUint32(tmpBuffer, value.(uint32))
 		pushSize = 4
 		break
 	case uint64, int64:
-		ring.Order.PutUint64(tmpBuffer, value.(uint64))
+		ring.order.PutUint64(tmpBuffer, value.(uint64))
 		pushSize = 8
 		break
 	case string:
@@ -98,24 +115,15 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 		return 0
 	}
 
-	var directWriteSize uint32
-	if ring.Rear < ring.Front {
-		directWriteSize = uint32(len(ring.Buffer[ring.Rear:ring.Front - 1]))
-	}else{
-		directWriteSize = uint32(len(ring.Buffer[ring.Rear:]))
-		if ring.Front == 0 {
-			directWriteSize -= 1
-		}
-	}
-
+	directWriteSize := ring.getDirectWriteSize()
 	if directWriteSize < pushSize {
-		copy(ring.Buffer[ring.Rear:], tmpBuffer[:directWriteSize])
-		copy(ring.Buffer[:ring.Front], tmpBuffer[directWriteSize:])
+		copy(ring.buffer[ring.rear:], tmpBuffer[:directWriteSize])
+		copy(ring.buffer[:ring.front], tmpBuffer[directWriteSize:])
 	} else{
-		copy(ring.Buffer[ring.Rear:], tmpBuffer)
+		copy(ring.buffer[ring.rear:], tmpBuffer)
 	}
 
-	ring.Rear = (ring.Rear + pushSize) % (ring.Capacity + 1)
+	ring.rear = (ring.rear + pushSize) % (ring.cap + 1)
 
 	return pushSize
 }
@@ -123,7 +131,7 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 func (ring *RingBuffer) Read(out_value interface{}, size uint32) uint32 {
 	peekSize := ring.Peek(out_value, size)
 
-	ring.Front = (ring.Front + peekSize) % (ring.Capacity + 1)
+	ring.front = (ring.front + peekSize) % (ring.cap + 1)
 
 	return peekSize
 }
@@ -135,12 +143,7 @@ func (ring *RingBuffer) Peek(out_value interface{}, size uint32) uint32 {
 		return 0
 	}
 
-	var directReadSize uint32
-	if ring.Rear < ring.Front {
-		directReadSize = (ring.Capacity + 1) - ring.Front
-	} else {
-		directReadSize = ring.Rear - ring.Front
-	}
+	directReadSize := ring.getDirectReadSize()
 
 	firstSize := directReadSize
 	secondSize := uint32(0)
@@ -152,9 +155,9 @@ func (ring *RingBuffer) Peek(out_value interface{}, size uint32) uint32 {
 	firstBuffer := make([]byte, firstSize)
 	secondBuffer := make([]byte, secondSize)
 
-	copy(firstBuffer, ring.Buffer[ring.Front:])
+	copy(firstBuffer, ring.buffer[ring.front:])
 	if directReadSize < size {
-		copy(secondBuffer, ring.Buffer[:ring.Rear])
+		copy(secondBuffer, ring.buffer[:ring.rear])
 	}
 
 	tmpBuffer := append(firstBuffer, secondBuffer...)
@@ -164,22 +167,22 @@ func (ring *RingBuffer) Peek(out_value interface{}, size uint32) uint32 {
 	switch out_value.(type){
 	case *bool, *byte:
 		pOutValue := out_value.(*byte)
-		*pOutValue = ring.Buffer[ring.Front]
+		*pOutValue = ring.buffer[ring.front]
 		peekSize = 1
 		break
 	case *uint16, *int16:
 		pOutValue := out_value.(*uint16)
-		*pOutValue = ring.Order.Uint16(tmpBuffer)
+		*pOutValue = ring.order.Uint16(tmpBuffer)
 		peekSize = 2
 		break
 	case *uint32, *int32:
 		pOutValue := out_value.(*uint32)
-		*pOutValue = ring.Order.Uint32(tmpBuffer)
+		*pOutValue = ring.order.Uint32(tmpBuffer)
 		peekSize = 4
 		break
 	case *uint64, *int64:
 		pOutValue := out_value.(*uint64)
-		*pOutValue = ring.Order.Uint64(tmpBuffer)
+		*pOutValue = ring.order.Uint64(tmpBuffer)
 		peekSize = 8
 		break
 	case *string:
@@ -204,7 +207,7 @@ func (ring *RingBuffer) MoveRear(offset uint32) {
 		return
 	}
 
-	ring.Rear = (ring.Rear + offset) % (ring.Capacity + 1)
+	ring.rear = (ring.rear + offset) % (ring.cap + 1)
 }
 
 func (ring *RingBuffer) MoveFront(offset uint32) {
@@ -212,16 +215,16 @@ func (ring *RingBuffer) MoveFront(offset uint32) {
 		return
 	}
 
-	ring.Front = (ring.Front + offset) % (ring.Capacity + 1)
+	ring.front = (ring.front + offset) % (ring.cap + 1)
 }
 
 func (ring *RingBuffer) GetEmptySize() uint32{
 	emptySize := uint32(0)
 
-	if ring.Rear < ring.Front {
-		emptySize = (ring.Front - ring.Rear) - 1
+	if ring.rear < ring.front {
+		emptySize = (ring.front - ring.rear) - 1
 	} else {
-		emptySize = ring.Capacity - (ring.Rear - ring.Front)
+		emptySize = ring.cap - (ring.rear - ring.front)
 	}
 
 	return emptySize
@@ -230,11 +233,38 @@ func (ring *RingBuffer) GetEmptySize() uint32{
 func (ring *RingBuffer) GetUseSize() uint32 {
 	useSize := uint32(0)
 
-	if ring.Rear < ring.Front {
-		useSize = (ring.Capacity + 1) - (ring.Front - ring.Rear)
+	if ring.rear < ring.front {
+		useSize = (ring.cap + 1) - (ring.front - ring.rear)
 	} else {
-		useSize = ring.Rear - ring.Front
+		useSize = ring.rear - ring.front
 	}
 
 	return useSize
+}
+
+func (ring *RingBuffer) getDirectWriteSize() uint32 {
+	var directWriteSize uint32
+
+	if ring.rear < ring.front {
+		directWriteSize = uint32(len(ring.buffer[ring.rear :ring.front- 1]))
+	}else{
+		directWriteSize = uint32(len(ring.buffer[ring.rear:]))
+		if ring.front == 0 {
+			directWriteSize -= 1
+		}
+	}
+
+	return directWriteSize
+}
+
+func (ring *RingBuffer) getDirectReadSize() uint32 {
+	var directReadSize uint32
+
+	if ring.rear < ring.front {
+		directReadSize = (ring.cap + 1) - ring.front
+	} else {
+		directReadSize = ring.rear - ring.front
+	}
+
+	return directReadSize
 }

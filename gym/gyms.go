@@ -13,12 +13,11 @@ type GymManager struct {
 }
 
 func newGyms() {
-	s := GetSingleton()
-
 	gymManager := &GymManager{
 		gyms : make(map[GymType]*Gym),
 	}
 
+	s := GetSingleton()
 	s.SetInstance(GymsName, gymManager)
 }
 
@@ -35,6 +34,7 @@ func GetGyms() *GymManager {
 func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, routineCount uint8) bool {
 	_, exist := gymManager.gyms[gymType]
 	if exist == true {
+		//TODO : 로그
 		return false
 	}
 

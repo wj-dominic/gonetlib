@@ -21,12 +21,12 @@ type Singleton struct{
 	instanceMap sync.Map
 }
 
-func (this *Singleton) SetInstance(name string, value interface{}) {
-	this.instanceMap.Store(name, value)
+func (singleton *Singleton) SetInstance(name string, value interface{}) {
+	singleton.instanceMap.Store(name, value)
 }
 
-func (this *Singleton) GetInstance(name string) interface{} {
-	if value, exist := this.instanceMap.Load(name) ; exist == true {
+func (singleton *Singleton) GetInstance(name string) interface{} {
+	if value, exist := singleton.instanceMap.Load(name) ; exist == true {
 		return value
 	}
 
