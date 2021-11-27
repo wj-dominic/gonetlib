@@ -8,7 +8,8 @@ import (
 )
 
 func TestLogger(t *testing.T) {
-	logger := NewLogger(Max, "", "")
+	logger := GetLogger()
+	logger.SetLogConfig(Max, "", "")
 	t.Logf("\ndir: %s\nfile name: %s\n", logger.directory, logger.logName)
 
 	err := logger.Start()

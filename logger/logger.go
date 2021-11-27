@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"gonetlib/singleton"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,6 +20,10 @@ const (
 
 var levelStr = [4]string{"ERROR", "WARNING", "INFO", "DEBUG"}
 
+const (
+	LoggerName string = "LOGGER"
+)
+
 type Logger struct {
 	logFile   *os.File
 	level     Level
@@ -26,32 +31,41 @@ type Logger struct {
 	logName   string
 	msg       chan string
 	stop      chan bool
+	isRunning bool
 }
 
-func NewLogger(level Level, dir string, logName string) *Logger {
-	if len(dir) == 0 {
-		dir = "./"
-	}
-
-	if len(logName) == 0 {
-		logName = filepath.Base(os.Args[0])
-		logName = logName[:len(logName)-len(filepath.Ext(logName))] + ".log"
-	}
-
+func newLogger() {
 	msg := make(chan string)
 	stop := make(chan bool)
 
-	return &Logger{
+	logger := &Logger{
 		logFile:   nil,
-		level:     level,
-		directory: dir,
-		logName:   logName,
+		level:     Error,
+		directory: "./",
+		logName:   "Logger.log",
 		msg:       msg,
 		stop:      stop,
 	}
+
+	s := singleton.GetSingleton()
+	s.SetInstance(LoggerName, logger)
+}
+
+func GetLogger() *Logger {
+	s := singleton.GetSingleton()
+
+	if s.GetInstance(LoggerName) == nil {
+		newLogger()
+	}
+
+	return s.GetInstance(LoggerName).(*Logger)
 }
 
 func (l *Logger) Start() error {
+	if l.isRunning {
+		return nil
+	}
+
 	err := l.setDirectory()
 	if err != nil {
 		return err
@@ -65,12 +79,29 @@ func (l *Logger) Start() error {
 
 	go l.loggerProc()
 
+	l.isRunning = true
+
 	return nil
 }
 
 func (l *Logger) Stop() {
 	l.stop <- true
 	l.logFile.Close()
+}
+
+func (l *Logger) SetLogConfig(level Level, dir string, logName string) {
+	l.level = level
+
+	if len(dir) == 0 {
+		dir = "./"
+	}
+	l.directory = dir
+
+	if len(logName) == 0 {
+		logName = filepath.Base(os.Args[0])
+		logName = logName[:len(logName)-len(filepath.Ext(logName))] + ".log"
+	}
+	l.logName = logName
 }
 
 func (l *Logger) Error(msg string) {
