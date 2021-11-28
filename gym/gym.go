@@ -1,6 +1,7 @@
 package gym
 
 import (
+	. "gonetlib/logger"
 	. "gonetlib/trainer"
 )
 
@@ -28,12 +29,12 @@ func NewGym(gymName string, gymType GymType) *Gym {
 
 func (gym *Gym) Create(routineCount uint8, trainerCount uint8) bool {
 	if routineCount == 0 {
-		//TODO : 로그
+		GetLogger().Error("routine count is zero")
 		return false
 	}
 
 	if trainerCount == 0 {
-		//TODO : 로그
+		GetLogger().Error("trainer count is zero")
 		return false
 	}
 

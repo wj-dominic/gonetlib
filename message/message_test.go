@@ -1,8 +1,6 @@
 package message
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"fmt"
 	"testing"
 )
@@ -15,6 +13,31 @@ import (
 5. 메시지 전송
 */
 
+func TestMessage_Push(t *testing.T){
+	msg := NewMessage(true)
+	
+	netHeader := NetHeader{
+		PacketType:    1,
+		CryptoType:    2,
+		RandKey:       3,
+		PayloadLength: 4,
+		CheckSum:      5,
+	}
+
+	fmt.Println("Header : ", netHeader)
+
+	msg.Push(netHeader)
+
+	fmt.Println("buffer : ", msg.GetBuffer())
+
+	var peekNetHeader NetHeader
+
+	msg.Pop(&peekNetHeader)
+
+	fmt.Println("Header : ", peekNetHeader)
+}
+
+/*
 func TestMsgEncodingXOR(t *testing.T) {
 	msg := NewMessage(true)
 
@@ -82,3 +105,5 @@ func TestMsgEncodingRSA(t *testing.T) {
 	}
 
 }
+
+//*/

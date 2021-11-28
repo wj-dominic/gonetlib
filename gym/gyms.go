@@ -2,6 +2,7 @@ package gym
 
 import (
 	. "gonetlib/singleton"
+	. "gonetlib/logger"
 )
 
 const (
@@ -34,7 +35,7 @@ func GetGyms() *GymManager {
 func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, routineCount uint8) bool {
 	_, exist := gymManager.gyms[gymType]
 	if exist == true {
-		//TODO : 로그
+		GetLogger().Warn("already has gyms : " + string(gymType))
 		return false
 	}
 
@@ -43,7 +44,7 @@ func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, rou
 	gym := NewGym(gymName, gymType)
 
 	if gym.Create(trainerCount, routineCount) == false {
-		//TODO : 로그
+		GetLogger().Error("cannot create a gym")
 		gym = nil
 		return false
 	}

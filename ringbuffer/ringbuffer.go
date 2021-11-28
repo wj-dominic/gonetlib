@@ -2,6 +2,7 @@ package ringbuffer
 
 import (
 	"encoding/binary"
+	"go/types"
 	"log"
 	"reflect"
 )
@@ -128,15 +129,15 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 	return pushSize
 }
 
-func (ring *RingBuffer) Read(out_value interface{}, size uint32) uint32 {
-	peekSize := ring.Peek(out_value, size)
+func (ring *RingBuffer) Read(outValue interface{}, size uint32) uint32 {
+	peekSize := ring.Peek(outValue, size)
 
 	ring.front = (ring.front + peekSize) % (ring.cap + 1)
 
 	return peekSize
 }
 
-func (ring *RingBuffer) Peek(out_value interface{}, size uint32) uint32 {
+func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 	useSize := ring.GetUseSize()
 	if useSize < size {
 		log.Printf("no have enough data to get in ring buffer | useSize[%d] getSize[%d]", useSize, size)
@@ -164,36 +165,39 @@ func (ring *RingBuffer) Peek(out_value interface{}, size uint32) uint32 {
 
 	var peekSize uint32
 
-	switch out_value.(type){
+	switch outValue.(type){
 	case *bool, *byte:
-		pOutValue := out_value.(*byte)
+		pOutValue := outValue.(*byte)
 		*pOutValue = ring.buffer[ring.front]
 		peekSize = 1
 		break
 	case *uint16, *int16:
-		pOutValue := out_value.(*uint16)
+		pOutValue := outValue.(*uint16)
 		*pOutValue = ring.order.Uint16(tmpBuffer)
 		peekSize = 2
 		break
 	case *uint32, *int32:
-		pOutValue := out_value.(*uint32)
+		pOutValue := outValue.(*uint32)
 		*pOutValue = ring.order.Uint32(tmpBuffer)
 		peekSize = 4
 		break
 	case *uint64, *int64:
-		pOutValue := out_value.(*uint64)
+		pOutValue := outValue.(*uint64)
 		*pOutValue = ring.order.Uint64(tmpBuffer)
 		peekSize = 8
 		break
 	case *string:
-		pOutValue := out_value.(*string)
+		pOutValue := outValue.(*string)
 		*pOutValue = string(tmpBuffer)
 		peekSize = uint32(len(tmpBuffer))
 		break
 	case *[]byte:
-		pOutValue := out_value.(*[]byte)
+		pOutValue := outValue.(*[]byte)
 		*pOutValue = tmpBuffer
 		peekSize = uint32(len(tmpBuffer))
+		break
+	case *types.Struct:
+
 		break
 	default:
 		return 0
@@ -202,20 +206,24 @@ func (ring *RingBuffer) Peek(out_value interface{}, size uint32) uint32 {
 	return peekSize
 }
 
-func (ring *RingBuffer) MoveRear(offset uint32) {
+func (ring *RingBuffer) MoveRear(offset uint32) bool {
 	if ring.GetEmptySize() < offset {
-		return
+		return false
 	}
 
 	ring.rear = (ring.rear + offset) % (ring.cap + 1)
+
+	return true
 }
 
-func (ring *RingBuffer) MoveFront(offset uint32) {
+func (ring *RingBuffer) MoveFront(offset uint32) bool {
 	if ring.GetUseSize() < offset {
-		return
+		return false
 	}
 
 	ring.front = (ring.front + offset) % (ring.cap + 1)
+
+	return true
 }
 
 func (ring *RingBuffer) GetEmptySize() uint32{

@@ -5,20 +5,17 @@ package session
 */
 
 import (
+	. "gonetlib/logger"
 	. "gonetlib/message"
 	. "gonetlib/ringbuffer"
 	util "gonetlib/util"
 	"io"
-	"log"
 	"net"
-)
-
-const (
-	recvBufferSize uint32 = 4096
+	"reflect"
 )
 
 type Session struct{
-	id	uint64			//세션 ID
+	id			uint64			//세션 ID
 	conn		net.Conn		//TCP connection
 	recvBuffer	*RingBuffer		//수신 버퍼, 수신 스레드만 접근 (thread safe X)
 	sendChannel chan *Message	//송신 버퍼, 송신이 필요한 모든 스레드에서 접근 (채널이어서 thread safe O)
@@ -35,10 +32,10 @@ func NewSession() *Session {
 	}
 }
 
-//클라이언트 연결 시 호출하는 함수
+// Start : 클라이언트 연결 시 호출하는 함수
 func (session *Session) Start(sessionID uint64, connection net.Conn) bool {
 	if connection == nil {
-		log.Println("connection is nullptr")	//TODO : 로그
+		GetLogger().Error("connection is nullptr")
 		return false
 	}
 
@@ -51,10 +48,12 @@ func (session *Session) Start(sessionID uint64, connection net.Conn) bool {
 	return true
 }
 
+// Close : 클라이언트 연결 종료 함수
 func (session *Session) Close() {
 	session.disconnectHandler()
 }
 
+// Reset : 세션 초기화 함수
 func (session *Session) Reset() {
 	session.id = 0
 	session.conn = nil
@@ -90,19 +89,43 @@ func (session *Session) asyncRead() {
 	}
 }
 
-//수신 스레드에서만 접근
+// recvHandler : 수신 스레드에서만 접근
 func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	if recvErr != nil {
 		if recvErr == io.EOF {
-			log.Println("connection is closed from client : ", session.conn.RemoteAddr().String())
+			GetLogger().Error("connection is closed from client : " + session.conn.RemoteAddr().String())
 			return false
 		} else {
-			log.Fatalln("read error : ", recvErr)
+			GetLogger().Error("read error : " + recvErr.Error())
 			return false
 		}
 	}
 
-	session.recvBuffer.MoveRear(recvSize)
+	if session.recvBuffer.MoveRear(recvSize) == false {
+		GetLogger().Error("failed to receive : " + string(recvSize))
+		return false
+	}
+
+
+	for {
+		var netHeader NetHeader
+		headerSize := util.Sizeof(reflect.TypeOf(netHeader))
+		if headerSize == -1 {
+			GetLogger().Error("header size was wrong...")
+			return false
+		}
+
+		if session.recvBuffer.GetUseSize() <= uint32(headerSize) {
+			break
+		}
+
+		session.recvBuffer.Peek(&netHeader, uint32(headerSize))
+
+
+
+	}
+
+
 
 	return true
 }
@@ -110,6 +133,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 //세션 종료 함수 : 여러 스레드(accept, recv, send) 접근 가능 (스레드 세이프)
 func (session *Session) disconnectHandler() {
 	defer session.once.Reset()
+
 	session.once.Do(func() {
 		session.Reset()
 	})
