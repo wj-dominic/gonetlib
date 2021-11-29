@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
+	"gonetlib/util"
 	"log"
 	mathRand "math/rand"
 	"reflect"
@@ -98,30 +99,42 @@ func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 
 func (msg *Message) Push(value interface{}) uint32 {
 	var pushSize uint32
-	var tmpBuffer []byte
-	tmpBuffer = make([]byte, bufferSize)
+	if reflect.TypeOf(value).Kind() == reflect.String{
+		pushSize = uint32(len(value.(string)))
+	} else {
+		pushSize = uint32(util.Sizeof(reflect.TypeOf(value)))
+	}
+
+	if msg.getFreeLength() < pushSize {
+		fmt.Println(value, pushSize)
+		return 0
+	}
 
 	switch reflect.TypeOf(value).Kind() {
 	case reflect.Bool, reflect.Uint8, reflect.Int8:
-		tmpBuffer[0] = value.(byte)
-		pushSize = 1
+		msg.buffer[msg.rear] = value.(byte)
 		break
 	case reflect.Uint16, reflect.Int16:
-		msg.order.PutUint16(tmpBuffer, value.(uint16))
-		pushSize = 2
+		msg.order.PutUint16(msg.buffer[msg.rear:], value.(uint16))
 		break
 	case reflect.Uint32, reflect.Int32:
-		msg.order.PutUint32(tmpBuffer, value.(uint32))
-		pushSize = 4
+		msg.order.PutUint32(msg.buffer[msg.rear:], value.(uint32))
 		break
 	case reflect.Uint64, reflect.Int64:
-		msg.order.PutUint64(tmpBuffer, value.(uint64))
-		pushSize = 8
+		msg.order.PutUint64(msg.buffer[msg.rear:], value.(uint64))
+		break
+	case reflect.Uint, reflect.Int:
+		tempValue := value.(uint)
+		if pushSize == 8 {
+			msg.order.PutUint64(msg.buffer[msg.rear:], uint64(tempValue))
+		} else {
+			msg.order.PutUint32(msg.buffer[msg.rear:], uint32(tempValue))
+		}
 		break
 	case reflect.String:
 		length := uint16(len(value.(string)))
 		msg.Push(length)
-		pushSize = uint32(copy(tmpBuffer, value.(string)))
+		copy(msg.buffer[msg.rear:], value.(string))
 		break
 	case reflect.Struct:
 		structBuffer := bytes.Buffer{}
@@ -129,26 +142,17 @@ func (msg *Message) Push(value interface{}) uint32 {
 		if err != nil {
 			log.Fatalln(err)
 		}
-
-		fmt.Println(structBuffer)
-
-		pushSize = uint32(copy(tmpBuffer, structBuffer.Bytes()))
-
+		copy(msg.buffer[msg.rear:], structBuffer.Bytes())
 		break
 	case reflect.Slice:
 		length := uint16(len(value.([]byte)))
 		msg.Push(length)
-		pushSize = uint32(copy(tmpBuffer, value.([]byte)))
+		copy(msg.buffer[msg.rear:], value.([]byte))
 		break
 	default:
 		return 0
 	}
 
-	if msg.getFreeLength() < pushSize {
-		return 0
-	}
-
-	copy(msg.buffer[msg.rear:], tmpBuffer)
 	msg.rear += pushSize
 
 	return pushSize
@@ -156,71 +160,36 @@ func (msg *Message) Push(value interface{}) uint32 {
 
 func (msg *Message) Peek(outValue interface{}) uint32{
 	var peekSize uint32
-	//var tmpBuffer []byte
-
 
 	switch reflect.TypeOf(outValue).Kind(){
 	case reflect.Ptr:
-		buf := bytes.NewReader(msg.GetPayloadBuffer())
-		err := binary.Read(buf, msg.order, outValue)
-		if err != nil {
-			fmt.Println("binary.Read failed:", err)
+		switch reflect.TypeOf(outValue).Elem().Kind() {
+		case reflect.Uint16, reflect.Int16:
+			pOutValue := outValue.(*uint16)
+			*pOutValue = msg.order.Uint16(msg.GetPayloadBuffer())
+			peekSize = 2
+			break
+
+		case reflect.Struct:
+			buf := bytes.NewReader(msg.GetPayloadBuffer())
+			err := binary.Read(buf, msg.order, outValue)
+			if err != nil {
+				fmt.Println("binary.Read failed:", err)
+			}
+			peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem().Type()))
+			break
+
+		case reflect.String:
+			var length uint16
+			msg.Pop(&length)
+			tmpBuffer := msg.buffer[msg.front : msg.front+ uint32(length)]
+			pOutValue := outValue.(*string)
+			*pOutValue = string(tmpBuffer)
+			peekSize = uint32(length)
+			break
 		}
-
-		fmt.Println(outValue)
-		break
-	case reflect.Struct:
-		fmt.Println("fff")
 		break
 	}
-
-	/*
-	switch outValue.(type){
-	case *bool, *byte:
-		pOutValue := outValue.(*byte)
-		*pOutValue = msg.buffer[msg.front]
-		peekSize = 1
-		break
-	case *uint16, *int16:
-		tmpBuffer = msg.buffer[msg.front : msg.front+ 2]
-		pOutValue := outValue.(*uint16)
-		*pOutValue = msg.order.Uint16(tmpBuffer)
-		peekSize = 2
-		break
-	case *uint32, *int32:
-		tmpBuffer = msg.buffer[msg.front : msg.front+ 4]
-		pOutValue := outValue.(*uint32)
-		*pOutValue = msg.order.Uint32(tmpBuffer)
-		peekSize = 4
-		break
-	case *uint64, *int64:
-		tmpBuffer = msg.buffer[msg.front : msg.front+ 8]
-		pOutValue := outValue.(*uint64)
-		*pOutValue = msg.order.Uint64(tmpBuffer)
-		peekSize = 8
-		break
-	case *string:
-		var length uint16
-		msg.Pop(&length)
-		tmpBuffer = msg.buffer[msg.front : msg.front+ uint32(length)]
-		pOutValue := outValue.(*string)
-		*pOutValue = string(tmpBuffer)
-		peekSize = uint32(length)
-		break
-	case *[]byte:
-		var length uint16
-		msg.Pop(&length)
-		tmpBuffer = msg.buffer[msg.front : msg.front+ uint32(length)]
-		pOutValue := outValue.(*[]byte)
-		*pOutValue = tmpBuffer
-		peekSize = uint32(length)
-		break
-	case types.Struct:
-		break
-	default:
-		return 0
-	}
-	//*/
 
 	return peekSize
 }

@@ -28,6 +28,10 @@ func TestMessage_Push(t *testing.T){
 
 	msg.Push(netHeader)
 
+	msg.Push("testslfjlskdjfklsdfhl")
+
+	msg.Push(int16(10))
+
 	fmt.Println("buffer : ", msg.GetBuffer())
 
 	var peekNetHeader NetHeader
@@ -35,6 +39,17 @@ func TestMessage_Push(t *testing.T){
 	msg.Pop(&peekNetHeader)
 
 	fmt.Println("Header : ", peekNetHeader)
+
+	var test string
+
+	msg.Pop(&test)
+
+	fmt.Println("string : " , test)
+
+	var testInt int
+	msg.Pop(&testInt)
+
+	fmt.Println("int : ", testInt)
 }
 
 /*
