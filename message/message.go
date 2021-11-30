@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
+	. "gonetlib/logger"
 	"gonetlib/util"
 	"log"
 	mathRand "math/rand"
@@ -98,12 +99,7 @@ func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 
 
 func (msg *Message) Push(value interface{}) uint32 {
-	var pushSize uint32
-	if reflect.TypeOf(value).Kind() == reflect.String{
-		pushSize = uint32(len(value.(string)))
-	} else {
-		pushSize = uint32(util.Sizeof(reflect.TypeOf(value)))
-	}
+	pushSize := uint32(util.Sizeof(reflect.ValueOf(value)))
 
 	if msg.getFreeLength() < pushSize {
 		fmt.Println(value, pushSize)
@@ -111,19 +107,51 @@ func (msg *Message) Push(value interface{}) uint32 {
 	}
 
 	switch reflect.TypeOf(value).Kind() {
-	case reflect.Bool, reflect.Uint8, reflect.Int8:
+	case reflect.Bool:
+		boolValue := value.(bool)
+		if boolValue == true {
+			msg.buffer[msg.rear] = 1
+		} else {
+			msg.buffer[msg.rear] = 0
+		}
+		break
+	case reflect.Int8:
+		tempValue := value.(int8)
+		msg.buffer[msg.rear] = uint8(tempValue)
+		break
+	case reflect.Uint8:
 		msg.buffer[msg.rear] = value.(byte)
 		break
-	case reflect.Uint16, reflect.Int16:
+	case reflect.Int16:
+		tempValue := value.(int16)
+		msg.order.PutUint16(msg.buffer[msg.rear:], uint16(tempValue))
+		break
+	case reflect.Uint16:
 		msg.order.PutUint16(msg.buffer[msg.rear:], value.(uint16))
 		break
-	case reflect.Uint32, reflect.Int32:
+	case reflect.Int32:
+		tempValue := value.(int32)
+		msg.order.PutUint32(msg.buffer[msg.rear:], uint32(tempValue))
+		break
+	case reflect.Uint32:
 		msg.order.PutUint32(msg.buffer[msg.rear:], value.(uint32))
 		break
-	case reflect.Uint64, reflect.Int64:
+	case reflect.Int64:
+		tempValue := value.(int64)
+		msg.order.PutUint64(msg.buffer[msg.rear:], uint64(tempValue))
+		break
+	case reflect.Uint64:
 		msg.order.PutUint64(msg.buffer[msg.rear:], value.(uint64))
 		break
-	case reflect.Uint, reflect.Int:
+	case reflect.Int:
+		tempValue := value.(int)
+		if pushSize == 8 {
+			msg.order.PutUint64(msg.buffer[msg.rear:], uint64(tempValue))
+		} else {
+			msg.order.PutUint32(msg.buffer[msg.rear:], uint32(tempValue))
+		}
+		break
+	case reflect.Uint:
 		tempValue := value.(uint)
 		if pushSize == 8 {
 			msg.order.PutUint64(msg.buffer[msg.rear:], uint64(tempValue))
@@ -159,15 +187,81 @@ func (msg *Message) Push(value interface{}) uint32 {
 }
 
 func (msg *Message) Peek(outValue interface{}) uint32{
-	var peekSize uint32
+	peekSize := uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
 
 	switch reflect.TypeOf(outValue).Kind(){
 	case reflect.Ptr:
 		switch reflect.TypeOf(outValue).Elem().Kind() {
-		case reflect.Uint16, reflect.Int16:
+		case reflect.Bool:
+			pOutValue := outValue.(*bool)
+			tempValue := msg.buffer[msg.front]
+			if tempValue == 1 {
+				*pOutValue = true
+			} else if tempValue == 0 {
+				*pOutValue = false
+			} else {
+				GetLogger().Error("peeked value is not boolean : " + string(tempValue))
+			}
+			break
+
+		case reflect.Int8:
+			pOutValue := outValue.(*int8)
+			*pOutValue = int8(msg.buffer[msg.front])
+			break
+
+		case reflect.Uint8:
+			pOutValue := outValue.(*uint8)
+			*pOutValue = msg.buffer[msg.front]
+			break
+
+		case reflect.Int16:
+			pOutValue := outValue.(*int16)
+			*pOutValue = int16(msg.order.Uint16(msg.GetPayloadBuffer()))
+			break
+
+		case reflect.Uint16:
 			pOutValue := outValue.(*uint16)
 			*pOutValue = msg.order.Uint16(msg.GetPayloadBuffer())
-			peekSize = 2
+			break
+
+		case reflect.Int32:
+			pOutValue := outValue.(*int32)
+			*pOutValue = int32(msg.order.Uint32(msg.GetPayloadBuffer()))
+			break
+
+		case reflect.Uint32:
+			pOutValue := outValue.(*uint32)
+			*pOutValue = msg.order.Uint32(msg.GetPayloadBuffer())
+			break
+
+		case reflect.Int64:
+			pOutValue := outValue.(*int64)
+			*pOutValue = int64(msg.order.Uint64(msg.GetPayloadBuffer()))
+			break
+
+		case reflect.Uint64:
+			pOutValue := outValue.(*uint64)
+			*pOutValue = msg.order.Uint64(msg.GetPayloadBuffer())
+			break
+
+		case reflect.Int:
+			pOutValue := outValue.(*int)
+
+			if peekSize == 8 {
+				*pOutValue = int(msg.order.Uint64(msg.GetPayloadBuffer()))
+			} else {
+				*pOutValue = int(msg.order.Uint32(msg.GetPayloadBuffer()))
+			}
+
+			break
+		case reflect.Uint:
+			pOutValue := outValue.(*uint)
+
+			if peekSize == 8 {
+				*pOutValue = uint(msg.order.Uint64(msg.GetPayloadBuffer()))
+			} else {
+				*pOutValue = uint(msg.order.Uint32(msg.GetPayloadBuffer()))
+			}
 			break
 
 		case reflect.Struct:
@@ -176,7 +270,6 @@ func (msg *Message) Peek(outValue interface{}) uint32{
 			if err != nil {
 				fmt.Println("binary.Read failed:", err)
 			}
-			peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem().Type()))
 			break
 
 		case reflect.String:
@@ -185,6 +278,14 @@ func (msg *Message) Peek(outValue interface{}) uint32{
 			tmpBuffer := msg.buffer[msg.front : msg.front+ uint32(length)]
 			pOutValue := outValue.(*string)
 			*pOutValue = string(tmpBuffer)
+			peekSize = uint32(length)
+			break
+
+		case reflect.Slice:
+			var length uint16
+			msg.Pop(&length)
+			pOutValue := outValue.(*[]byte)
+			*pOutValue = msg.buffer[msg.front : msg.front + uint32(length)]
 			peekSize = uint32(length)
 			break
 		}
@@ -239,7 +340,7 @@ func (msg *Message) DecodeXOR(key uint8){
 	if recvChecksum != generatedChecksum {
 		//TODO_MSG :: 로그 삽입
 		log.Fatalln("mismatch check sum : ", recvChecksum, generatedChecksum)
-		return;
+		return
 	}
 }
 

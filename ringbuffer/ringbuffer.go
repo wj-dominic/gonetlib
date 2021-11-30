@@ -1,8 +1,11 @@
 package ringbuffer
 
 import (
+	"bytes"
 	"encoding/binary"
-	"go/types"
+	"fmt"
+	. "gonetlib/logger"
+	"gonetlib/util"
 	"log"
 	"reflect"
 )
@@ -79,40 +82,92 @@ func (ring *RingBuffer) IsFull() bool {
 
 func (ring *RingBuffer) Write(value interface{}) uint32 {
 	var pushSize uint32
-	var tmpBuffer []byte
-	length := reflect.ValueOf(value).Len()
-	tmpBuffer = make([]byte, length)
-
-	switch value.(type){
-	case bool, byte:
-		tmpBuffer[0] = value.(byte)
-		pushSize = 1
-		break
-	case uint16, int16:
-		ring.order.PutUint16(tmpBuffer, value.(uint16))
-		pushSize = 2
-		break
-	case uint32, int32:
-		ring.order.PutUint32(tmpBuffer, value.(uint32))
-		pushSize = 4
-		break
-	case uint64, int64:
-		ring.order.PutUint64(tmpBuffer, value.(uint64))
-		pushSize = 8
-		break
-	case string:
-		pushSize = uint32(copy(tmpBuffer, value.(string)))
-		break
-	case []byte:
-		pushSize = uint32(copy(tmpBuffer, value.([]byte)))
-		break
-	default:
-		return 0
+	if reflect.TypeOf(value).Kind() == reflect.String {
+		pushSize = uint32(len(value.(string)))
+	} else if reflect.TypeOf(value).Kind() == reflect.Slice{
+		pushSize = uint32(len(value.([]byte)))
+	} else {
+		pushSize = uint32(util.Sizeof(reflect.ValueOf(value)))
 	}
 
 	emptySize := ring.GetEmptySize()
 	if emptySize < pushSize {
-		log.Printf("no have enough space in ring buffer | emptySize[%d] pushSize[%d]", emptySize, pushSize)
+		GetLogger().Error("no have enough space in ring buffer")
+		return 0
+	}
+
+	tmpBuffer := make([]byte, pushSize)
+
+	switch reflect.TypeOf(value).Kind() {
+	case reflect.Bool:
+		boolValue := value.(bool)
+		if boolValue == true {
+			tmpBuffer[0] = 1
+		} else {
+			tmpBuffer[0] = 0
+		}
+		break
+	case reflect.Int8:
+		tempValue := value.(int8)
+		tmpBuffer[0] = uint8(tempValue)
+		break
+	case reflect.Uint8:
+		tmpBuffer[0] = value.(byte)
+		break
+	case reflect.Int16:
+		tempValue := value.(int16)
+		ring.order.PutUint16(tmpBuffer, uint16(tempValue))
+		break
+	case reflect.Uint16:
+		ring.order.PutUint16(tmpBuffer, value.(uint16))
+		break
+	case reflect.Int32:
+		tempValue := value.(int32)
+		ring.order.PutUint32(tmpBuffer, uint32(tempValue))
+		break
+	case reflect.Uint32:
+		ring.order.PutUint32(tmpBuffer, value.(uint32))
+		break
+	case reflect.Int64:
+		tempValue := value.(int64)
+		ring.order.PutUint64(tmpBuffer, uint64(tempValue))
+		break
+	case reflect.Uint64:
+		ring.order.PutUint64(tmpBuffer, value.(uint64))
+		break
+	case reflect.Int:
+		tempValue := value.(int)
+		if pushSize == 8 {
+			ring.order.PutUint64(tmpBuffer, uint64(tempValue))
+		} else {
+			ring.order.PutUint32(tmpBuffer, uint32(tempValue))
+		}
+		break
+	case reflect.Uint:
+		tempValue := value.(uint)
+		if pushSize == 8 {
+			ring.order.PutUint64(tmpBuffer, uint64(tempValue))
+		} else {
+			ring.order.PutUint32(tmpBuffer, uint32(tempValue))
+		}
+		break
+	case reflect.String:
+		copy(tmpBuffer, value.(string))
+		break
+	case reflect.Struct:
+		structBuffer := bytes.Buffer{}
+		err := binary.Write(&structBuffer, ring.order, value)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		tmpBuffer = nil
+		tmpBuffer = structBuffer.Bytes()
+		break
+	case reflect.Slice:
+		tmpBuffer = nil
+		tmpBuffer = value.([]byte)
+		break
+	default:
 		return 0
 	}
 
@@ -164,43 +219,107 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 	tmpBuffer := append(firstBuffer, secondBuffer...)
 
 	var peekSize uint32
+	if reflect.TypeOf(outValue).Elem().Kind() != reflect.String && reflect.TypeOf(outValue).Elem().Kind() != reflect.Slice{
+		peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
+	}
 
-	switch outValue.(type){
-	case *bool, *byte:
-		pOutValue := outValue.(*byte)
-		*pOutValue = ring.buffer[ring.front]
-		peekSize = 1
-		break
-	case *uint16, *int16:
-		pOutValue := outValue.(*uint16)
-		*pOutValue = ring.order.Uint16(tmpBuffer)
-		peekSize = 2
-		break
-	case *uint32, *int32:
-		pOutValue := outValue.(*uint32)
-		*pOutValue = ring.order.Uint32(tmpBuffer)
-		peekSize = 4
-		break
-	case *uint64, *int64:
-		pOutValue := outValue.(*uint64)
-		*pOutValue = ring.order.Uint64(tmpBuffer)
-		peekSize = 8
-		break
-	case *string:
-		pOutValue := outValue.(*string)
-		*pOutValue = string(tmpBuffer)
-		peekSize = uint32(len(tmpBuffer))
-		break
-	case *[]byte:
-		pOutValue := outValue.(*[]byte)
-		*pOutValue = tmpBuffer
-		peekSize = uint32(len(tmpBuffer))
-		break
-	case *types.Struct:
+	switch reflect.TypeOf(outValue).Kind(){
+	case reflect.Ptr:
+		switch reflect.TypeOf(outValue).Elem().Kind() {
+		case reflect.Bool:
+			pOutValue := outValue.(*bool)
+			tempValue := ring.buffer[ring.front]
+			if tempValue == 1 {
+				*pOutValue = true
+			} else if tempValue == 0 {
+				*pOutValue = false
+			} else {
+				GetLogger().Error("peeked value is not boolean : " + string(tempValue))
+			}
+			break
 
+		case reflect.Int8:
+			pOutValue := outValue.(*int8)
+			*pOutValue = int8(ring.buffer[ring.front])
+			break
+
+		case reflect.Uint8:
+			pOutValue := outValue.(*uint8)
+			*pOutValue = ring.buffer[ring.front]
+			break
+
+		case reflect.Int16:
+			pOutValue := outValue.(*int16)
+			*pOutValue = int16(ring.order.Uint16(tmpBuffer))
+			break
+
+		case reflect.Uint16:
+			pOutValue := outValue.(*uint16)
+			*pOutValue = ring.order.Uint16(tmpBuffer)
+			break
+
+		case reflect.Int32:
+			pOutValue := outValue.(*int32)
+			*pOutValue = int32(ring.order.Uint32(tmpBuffer))
+			break
+
+		case reflect.Uint32:
+			pOutValue := outValue.(*uint32)
+			*pOutValue = ring.order.Uint32(tmpBuffer)
+			break
+
+		case reflect.Int64:
+			pOutValue := outValue.(*int64)
+			*pOutValue = int64(ring.order.Uint64(tmpBuffer))
+			break
+
+		case reflect.Uint64:
+			pOutValue := outValue.(*uint64)
+			*pOutValue = ring.order.Uint64(tmpBuffer)
+			break
+
+		case reflect.Int:
+			pOutValue := outValue.(*int)
+
+			if peekSize == 8 {
+				*pOutValue = int(ring.order.Uint64(tmpBuffer))
+			} else {
+				*pOutValue = int(ring.order.Uint32(tmpBuffer))
+			}
+
+			break
+		case reflect.Uint:
+			pOutValue := outValue.(*uint)
+
+			if peekSize == 8 {
+				*pOutValue = uint(ring.order.Uint64(tmpBuffer))
+			} else {
+				*pOutValue = uint(ring.order.Uint32(tmpBuffer))
+			}
+			break
+
+		case reflect.Struct:
+			buf := bytes.NewReader(tmpBuffer)
+			err := binary.Read(buf, ring.order, outValue)
+			if err != nil {
+				fmt.Println("binary.Read failed:", err)
+			}
+			peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
+			break
+
+		case reflect.String:
+			pOutValue := outValue.(*string)
+			*pOutValue = string(tmpBuffer)
+			peekSize = size
+			break
+
+		case reflect.Slice:
+			pOutValue := outValue.(*[]byte)
+			*pOutValue = tmpBuffer
+			peekSize = size
+			break
+		}
 		break
-	default:
-		return 0
 	}
 
 	return peekSize

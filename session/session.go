@@ -109,7 +109,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 
 	for {
 		var netHeader NetHeader
-		headerSize := util.Sizeof(reflect.TypeOf(netHeader))
+		headerSize := util.Sizeof(reflect.ValueOf(netHeader))
 		if headerSize == -1 {
 			GetLogger().Error("header size was wrong...")
 			return false
@@ -120,7 +120,6 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 		}
 
 		session.recvBuffer.Peek(&netHeader, uint32(headerSize))
-
 
 
 	}

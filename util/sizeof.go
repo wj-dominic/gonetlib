@@ -2,34 +2,59 @@ package util
 
 import (
 	"reflect"
+	"sync"
 )
 
-func Sizeof(valueType reflect.Type) int {
-	switch valueType.Kind() {
-	case reflect.Array, reflect.Slice:
-		if elemSize := Sizeof(valueType.Elem()) ; elemSize >= 0 {
-			return elemSize * valueType.Len()
+var structSize sync.Map // map[reflect.Type]int
+
+func Sizeof(value reflect.Value) int {
+	switch value.Kind() {
+	case reflect.Slice:
+		if s := sizeof(value.Type().Elem()); s >= 0 {
+			return s * value.Len()
 		}
-		break
+		return -1
+
+	case reflect.String:
+		return value.Len()
+
+	case reflect.Struct:
+		t := value.Type()
+		if size, ok := structSize.Load(t); ok {
+			return size.(int)
+		}
+		size := sizeof(t)
+		structSize.Store(t, size)
+		return size
+
+	default:
+		return sizeof(value.Type())
+	}
+}
+
+func sizeof(t reflect.Type) int {
+	switch t.Kind() {
+	case reflect.Array:
+		if s := sizeof(t.Elem()); s >= 0 {
+			return s * t.Len()
+		}
 
 	case reflect.Struct:
 		sum := 0
-		for idx, max := 0, valueType.NumField() ; idx < max ; idx++ {
-			fieldSize := Sizeof(valueType.Field(idx).Type)
-			if fieldSize < 0 {
+		for i, n := 0, t.NumField(); i < n; i++ {
+			s := sizeof(t.Field(i).Type)
+			if s < 0 {
 				return -1
 			}
-			sum += fieldSize
+			sum += s
 		}
 		return sum
 
-	case reflect.Uint8, reflect.Uint16, reflect.Uint, reflect.Uint32, reflect.Uint64,
-		reflect.Int8, reflect.Int16, reflect.Int, reflect.Int32, reflect.Int64,
+	case reflect.Bool,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint,
+		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
-		return int(valueType.Size())
-
-	case reflect.Ptr, reflect.Uintptr:
-		return int(valueType.Size())
+		return int(t.Size())
 	}
 
 	return -1

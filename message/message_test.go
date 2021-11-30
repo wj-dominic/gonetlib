@@ -24,32 +24,45 @@ func TestMessage_Push(t *testing.T){
 		CheckSum:      5,
 	}
 
-	fmt.Println("Header : ", netHeader)
-
 	msg.Push(netHeader)
-
 	msg.Push("testslfjlskdjfklsdfhl")
+	msg.Push(10)
+	msg.Push(uint(19))
+	msg.Push(int8(100))
+	msg.Push(byte(90))
+	msg.Push(true)
+	msg.Push([]byte{1,2,3,4,5})
 
-	msg.Push(int16(10))
-
-	fmt.Println("buffer : ", msg.GetBuffer())
+	fmt.Println("after push buffer : ", msg.GetPayloadBuffer(), msg.GetPayloadLength())
 
 	var peekNetHeader NetHeader
+	var peekString string
+	var peekInt int
+	var peekUint uint
+	var peekInt8 int8
+	var peekByte byte
+	var peekBool bool
+	var peekBytes []byte
 
 	msg.Pop(&peekNetHeader)
+	msg.Pop(&peekString)
+	msg.Pop(&peekInt)
+	msg.Pop(&peekUint)
+	msg.Pop(&peekInt8)
+	msg.Pop(&peekByte)
+	msg.Pop(&peekBool)
+	msg.Pop(&peekBytes)
 
-	fmt.Println("Header : ", peekNetHeader)
+	fmt.Println(peekNetHeader)
+	fmt.Println(peekString)
+	fmt.Println(peekInt)
+	fmt.Println(peekUint)
+	fmt.Println(peekInt8)
+	fmt.Println(peekByte)
+	fmt.Println(peekBool)
+	fmt.Println(peekBytes)
 
-	var test string
-
-	msg.Pop(&test)
-
-	fmt.Println("string : " , test)
-
-	var testInt int
-	msg.Pop(&testInt)
-
-	fmt.Println("int : ", testInt)
+	fmt.Println("after pop buffer : ", msg.GetPayloadBuffer(), msg.GetPayloadLength())
 }
 
 /*
