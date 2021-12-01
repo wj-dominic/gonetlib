@@ -1,7 +1,7 @@
 package gym
 
 import (
-	. "gonetlib/logger"
+	. "gonetlib/netlogger"
 	. "gonetlib/trainer"
 )
 

@@ -6,8 +6,8 @@ package session
 
 import (
 	"crypto/rsa"
-	. "gonetlib/logger"
 	. "gonetlib/message"
+	. "gonetlib/netlogger"
 	. "gonetlib/ringbuffer"
 	util "gonetlib/util"
 	"io"

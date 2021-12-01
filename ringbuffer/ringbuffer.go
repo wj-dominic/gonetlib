@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	. "gonetlib/logger"
+	. "gonetlib/netlogger"
 	"gonetlib/util"
 	"log"
 	"reflect"

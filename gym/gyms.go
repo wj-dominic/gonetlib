@@ -1,8 +1,8 @@
 package gym
 
 import (
+	. "gonetlib/netlogger"
 	. "gonetlib/singleton"
-	. "gonetlib/logger"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
-	. "gonetlib/logger"
+	. "gonetlib/netlogger"
 	"gonetlib/util"
 	"log"
 	mathRand "math/rand"
