@@ -1,4 +1,4 @@
-package logger
+package netlogger
 
 import (
 	"fmt"
@@ -24,7 +24,7 @@ const (
 	LoggerName string = "LOGGER"
 )
 
-type Logger struct {
+type NetLogger struct {
 	logFile   *os.File
 	level     Level
 	directory string
@@ -38,7 +38,7 @@ func newLogger() {
 	msg := make(chan string)
 	stop := make(chan bool)
 
-	logger := &Logger{
+	logger := &NetLogger{
 		logFile:   nil,
 		level:     Error,
 		directory: "./",
@@ -51,17 +51,17 @@ func newLogger() {
 	s.SetInstance(LoggerName, logger)
 }
 
-func GetLogger() *Logger {
+func GetLogger() *NetLogger {
 	s := singleton.GetSingleton()
 
 	if s.GetInstance(LoggerName) == nil {
 		newLogger()
 	}
 
-	return s.GetInstance(LoggerName).(*Logger)
+	return s.GetInstance(LoggerName).(*NetLogger)
 }
 
-func (l *Logger) Start() error {
+func (l *NetLogger) Start() error {
 	if l.isRunning {
 		return nil
 	}
@@ -84,12 +84,12 @@ func (l *Logger) Start() error {
 	return nil
 }
 
-func (l *Logger) Stop() {
+func (l *NetLogger) Stop() {
 	l.stop <- true
 	l.logFile.Close()
 }
 
-func (l *Logger) SetLogConfig(level Level, dir string, logName string) {
+func (l *NetLogger) SetLogConfig(level Level, dir string, logName string) {
 	l.level = level
 
 	if len(dir) == 0 {
@@ -104,32 +104,38 @@ func (l *Logger) SetLogConfig(level Level, dir string, logName string) {
 	l.logName = logName
 }
 
-func (l *Logger) Error(msg string) {
-	l.log(Error, msg)
+func (l *NetLogger) Error(format string, v ...interface{}) {
+	l.log(Error, format, v...)
 }
 
-func (l *Logger) Warn(msg string) {
-	l.log(Warning, msg)
+func (l *NetLogger) Warn(format string, v ...interface{}) {
+	l.log(Warning, format, v...)
 }
 
-func (l *Logger) Info(msg string) {
-	l.log(Info, msg)
+func (l *NetLogger) Info(format string, v ...interface{}) {
+	l.log(Info, format, v...)
 }
 
-func (l *Logger) Debug(msg string) {
-	l.log(Debug, msg)
+func (l *NetLogger) Debug(format string, v ...interface{}) {
+	l.log(Debug, format, v...)
 }
 
-func (l *Logger) log(level Level, msg string) {
+//func (l *NetLogger) log(level Level, msg string) {
+func (l *NetLogger) log(level Level, format string, v ...interface{}) {
+	if !l.isRunning {
+		return
+	}
+
 	if level > l.level {
 		return
 	}
 
-	log := fmt.Sprintf("[%s][%s]%s\n", time.Now().Format("2006-01-02 15:04:05"), levelStr[level], msg)
+	msg := fmt.Sprintf(format, v...)
+	log := fmt.Sprintf("[%s][%s]%s \n", time.Now().Format("2006-01-02 15:04:05"), levelStr[level], msg)
 	l.msg <- log
 }
 
-func (l *Logger) loggerProc() {
+func (l *NetLogger) loggerProc() {
 	// TODO: ticker duration 변경 가능하도록
 	ticker := time.NewTicker(time.Second * 3)
 
@@ -143,7 +149,7 @@ func (l *Logger) loggerProc() {
 	}
 }
 
-func (l *Logger) writeLog() {
+func (l *NetLogger) writeLog() {
 	for {
 		select {
 		case msg := <-l.msg:
@@ -154,11 +160,11 @@ func (l *Logger) writeLog() {
 	}
 }
 
-func (l *Logger) SetLevel(level Level) {
+func (l *NetLogger) SetLevel(level Level) {
 	l.level = level
 }
 
-func (l *Logger) setDirectory() error {
+func (l *NetLogger) setDirectory() error {
 	if isExistFile(l.directory) {
 		return nil
 	}
