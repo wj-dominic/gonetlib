@@ -5,6 +5,7 @@ package session
 */
 
 import (
+	"crypto/rsa"
 	. "gonetlib/logger"
 	. "gonetlib/message"
 	. "gonetlib/ringbuffer"
@@ -14,21 +15,40 @@ import (
 	"reflect"
 )
 
+type KeyChain struct{
+	XOR		uint8
+	RSA 	rsa.PublicKey
+}
+
+type Node interface {
+	OnRecv(packet *Message) bool
+}
+
 type Session struct{
 	id			uint64			//세션 ID
 	conn		net.Conn		//TCP connection
 	recvBuffer	*RingBuffer		//수신 버퍼, 수신 스레드만 접근 (thread safe X)
 	sendChannel chan *Message	//송신 버퍼, 송신이 필요한 모든 스레드에서 접근 (채널이어서 thread safe O)
 
+	keys		KeyChain
+
+	node		Node
+
 	once		util.Once
 }
 
-func NewSession() *Session {
+
+func NewSession(node Node) *Session {
 	return &Session{
 		id : 0,
 		conn : nil,
 		recvBuffer: NewRingBuffer(true, 300),
 		sendChannel: make(chan *Message),
+
+		node : node,
+
+		keys : KeyChain{0, rsa.PublicKey{}},
+
 	}
 }
 
@@ -107,24 +127,81 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	}
 
 
-	for {
-		var netHeader NetHeader
-		headerSize := util.Sizeof(reflect.ValueOf(netHeader))
-		if headerSize == -1 {
-			GetLogger().Error("header size was wrong...")
-			return false
-		}
+	netHeader := NetHeader{}
+	headerSize := util.Sizeof(reflect.ValueOf(netHeader))
+	if headerSize == -1 {
+		GetLogger().Error("header size was wrong...")
+		return false
+	}
 
+	for {
 		if session.recvBuffer.GetUseSize() <= uint32(headerSize) {
 			break
 		}
 
 		session.recvBuffer.Peek(&netHeader, uint32(headerSize))
 
+		packetSize := uint32(headerSize) + uint32(netHeader.PayloadLength)
+		if session.recvBuffer.GetUseSize() < packetSize {
+			break
+		}
 
+		session.recvBuffer.MoveFront(uint32(headerSize))
+
+		packet := NewMessage(true)
+
+		packet.PushHeader(&netHeader)
+		session.recvBuffer.Read(packet.GetPayloadBuffer(), uint32(netHeader.PayloadLength))
+
+		if session.onRecv(packet) == false {
+			return false
+		}
 	}
 
+	return true
+}
 
+//패킷 수신 이벤트 함수 : 수신 스레드에서만 접근
+func (session *Session) onRecv(packet *Message) bool {
+	if packet == nil {
+		return false
+	}
+
+	if packet.IsValid() == false {
+		//TODO 로그
+		return false
+	}
+
+	cryptoType := packet.GetCryptoType()
+	switch cryptoType{
+	case NONE:
+		break
+	case XOR:
+		packet.DecodeXOR(session.keys.XOR)
+		break
+	case RSA:
+		//packet.DecodeRSA() //TODO 서버 개인 키 필요
+		break
+	default:
+		//TODO 로그
+		return false
+	}
+
+	packetType := packet.GetType()
+	switch packetType{
+	case SYN:
+		packet.Pop(&session.keys.RSA)
+		break
+	case SYN_ACK:
+		packet.Pop(&session.keys.XOR)
+		break
+	case ESTABLISHED:
+		session.node.OnRecv(packet) //TODO 콘텐츠 쪽에 전달
+		break
+	default:
+		//TODO 로그
+		return false
+	}
 
 	return true
 }

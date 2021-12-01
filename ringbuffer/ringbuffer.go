@@ -220,7 +220,7 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 
 	var peekSize uint32
 	if reflect.TypeOf(outValue).Elem().Kind() != reflect.String && reflect.TypeOf(outValue).Elem().Kind() != reflect.Slice{
-		peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
+		peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue)))
 	}
 
 	switch reflect.TypeOf(outValue).Kind(){
@@ -319,6 +319,9 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 			peekSize = size
 			break
 		}
+		break
+	case reflect.Slice:
+		peekSize = uint32(copy(outValue.([]byte), tmpBuffer[:size]))
 		break
 	}
 

@@ -2,9 +2,7 @@ package ringbuffer
 
 import (
 	"fmt"
-	"math/rand"
 	"testing"
-	"time"
 )
 
 
@@ -13,6 +11,29 @@ const (
 	buff_size uint32 = 300
 )
 
+func TestRingBuffer_Read(t *testing.T) {
+	ringBuffer := NewRingBuffer(true, 300)
+
+	values := []byte{1,2,3,4,5,6,7}
+
+	fmt.Println("write : ", values)
+
+	writeLength := ringBuffer.Write(values)
+	if writeLength != uint32(len(values)){
+		t.Fail()
+	}
+
+	readValues := make([]byte, len(values) + 10)
+
+	readLength := ringBuffer.Read(readValues[4:15], uint32(len(values)))
+	if readLength != uint32(len(values)){
+		t.Fail()
+	}
+
+	fmt.Println("read : ", readValues)
+}
+
+/*
 func TestRingbuffer(t *testing.T) {
 	ringBuffer := NewRingBuffer(true, 100)
 
@@ -73,3 +94,4 @@ func TestInfiniteTest(t *testing.T){
 	}
 
 }
+ */

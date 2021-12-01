@@ -23,8 +23,9 @@ const(
 
 type CryptoType uint8
 const (
-	XOR CryptoType = 1 + iota
-	RSA
+	NONE CryptoType = 0 + iota		//암호화 없음
+	XOR 							//빠른 암호화
+	RSA								//느린 암호화
 )
 
 type NetHeader struct{
@@ -97,6 +98,9 @@ func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
 	msg.packHeader(header) //pragma pack(1)
 }
 
+func (msg *Message) PushHeader(header *NetHeader) {
+	msg.packHeader(*header)
+}
 
 func (msg *Message) Push(value interface{}) uint32 {
 	pushSize := uint32(util.Sizeof(reflect.ValueOf(value)))
@@ -420,4 +424,37 @@ func (msg *Message) packHeader(header NetHeader) {
 
 func (msg *Message) isCryptoType(cryptoType CryptoType) bool {
 	return CryptoType(msg.buffer[1]) == cryptoType
+}
+
+func (msg *Message) IsValid() bool {
+	packetType := PacketType(msg.buffer[0])
+	cryptoType := CryptoType(msg.buffer[1])
+
+	switch packetType {
+	case SYN:
+		if cryptoType != NONE {
+			//TODO : 로그
+			return false
+		}
+		break
+	case SYN_ACK:
+		if cryptoType != RSA {
+			//TODO : 로그
+			return false
+		}
+		break
+	case ESTABLISHED:
+		break
+	}
+
+
+	return true
+}
+
+func (msg *Message) GetType() PacketType {
+	return PacketType(msg.buffer[0])
+}
+
+func (msg *Message) GetCryptoType() CryptoType{
+	return CryptoType(msg.buffer[1])
 }
