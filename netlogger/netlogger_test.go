@@ -1,7 +1,6 @@
-package logger
+package netlogger
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -27,8 +26,8 @@ func TestLogger(t *testing.T) {
 				if i > 0 && i%5 == 0 {
 					time.Sleep(time.Millisecond * 100)
 				}
-				msg := fmt.Sprintf("[id:%d]test log %d", id, i)
-				logger.Debug(msg)
+				// msg := fmt.Sprintf("[id:%d]test log %d", id, i)
+				logger.Error("[id:%d]test log %d", id, i)
 			}
 			wg.Done()
 		}()
