@@ -433,13 +433,13 @@ func (msg *Message) IsValid() bool {
 	switch packetType {
 	case SYN:
 		if cryptoType != NONE {
-			//TODO : 로그
+			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType);
 			return false
 		}
 		break
 	case SYN_ACK:
 		if cryptoType != RSA {
-			//TODO : 로그
+			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType);
 			return false
 		}
 		break

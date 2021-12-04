@@ -5,6 +5,7 @@ package session
 */
 
 import (
+	"bytes"
 	"crypto/rsa"
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
@@ -13,59 +14,71 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"time"
+	"unsafe"
 )
 
-type KeyChain struct{
+type keyChain struct{
 	XOR		uint8
 	RSA 	rsa.PublicKey
 }
 
 type Node interface {
+	OnConnect()
+	OnDisconnect()
 	OnRecv(packet *Message) bool
+	OnSend(sendBytes int)
+}
+
+type ioBlock struct {
+	refCount	int32
+	releaseFlag	int32
 }
 
 type Session struct{
 	id			uint64			//세션 ID
-	conn		net.Conn		//TCP connection
 	recvBuffer	*RingBuffer		//수신 버퍼, 수신 스레드만 접근 (thread safe X)
 	sendChannel chan *Message	//송신 버퍼, 송신이 필요한 모든 스레드에서 접근 (채널이어서 thread safe O)
+	keys 		keyChain
 
-	keys		KeyChain
+	socket 		net.Conn //TCP connection
+	node  	 	Node
 
-	node		Node
+	ioblock		ioBlock
 
-	once		util.Once
+	sendOnce	util.Once
 }
 
-
-func NewSession(node Node) *Session {
+func NewSession() *Session {
 	return &Session{
 		id : 0,
-		conn : nil,
 		recvBuffer: NewRingBuffer(true, 300),
 		sendChannel: make(chan *Message),
 
-		node : node,
+		socket: nil,
+		node :  nil,
 
-		keys : KeyChain{0, rsa.PublicKey{}},
+		ioblock : ioBlock {0, 0},
 
+		keys : keyChain{0, rsa.PublicKey{}},
 	}
 }
 
-// Start : 클라이언트 연결 시 호출하는 함수
-func (session *Session) Start(sessionID uint64, connection net.Conn) bool {
+func (session *Session) Setup(sessionID uint64, connection net.Conn, node Node) {
 	if connection == nil {
 		GetLogger().Error("connection is nullptr")
-		return false
+		return
 	}
 
-	session.Reset()
 	session.id = sessionID
-	session.conn = connection
+	session.socket = connection
+	session.node = node
+	session.ioblock.refCount = 1 	//릴리즈 방지를 위해 우선 1로 세팅
+}
 
-	go session.asyncRead()
-
-	return true
+// Start : 클라이언트 연결 시 호출하는 함수 (accept 스레드에서 접근)
+func (session *Session) Start() {
+	session.connectHandler()
 }
 
 // Close : 클라이언트 연결 종료 함수
@@ -76,9 +89,11 @@ func (session *Session) Close() {
 // Reset : 세션 초기화 함수
 func (session *Session) Reset() {
 	session.id = 0
-	session.conn = nil
-	session.recvBuffer.Clear()
 
+	session.socket = nil
+	session.node = nil
+
+	session.recvBuffer.Clear()
 	for len(session.sendChannel) > 0 {
 		select{
 		case <- session.sendChannel:
@@ -88,20 +103,46 @@ func (session *Session) Reset() {
 		}
 	}
 
+	session.ioblock = ioBlock{0, 0}
+}
+
+func (session *Session) SendPost(packet *Message) bool {
+	if packet == nil {
+		GetLogger().Error("Failed to send | packet is nullptr")
+		return false
+	}
+
+	session.sendChannel <- packet
+
+	session.sendHandler()
+	
+	return true
+}
+
+//Accept 스레드에서 접근하는 함수
+func (session *Session) connectHandler() {
+	session.acquire()									//ref = 2
+
+	defer func(){
+		util.InterlockDecrement(&session.ioblock.refCount) 		//ref = 2
+		defer session.release()                    				//ref = 1
+	}()
+
+	session.node.OnConnect()
+
+	go session.asyncRead()								//ref = 3
 }
 
 //수신 스레드
 func (session *Session) asyncRead() {
-	if session.conn == nil {
-		return
-	}
+	session.acquire()
 
-	defer session.disconnectHandler()
+	defer session.release()	//상대방과의 연결이 끊기면 릴리즈
 
 	for {
 		buffer := session.recvBuffer.GetRearBuffer()
 
-		recvSize, err := session.conn.Read(buffer)
+		recvSize, err := session.socket.Read(buffer)
 
 		if session.recvHandler(uint32(recvSize), err) == false {
 			break
@@ -113,7 +154,7 @@ func (session *Session) asyncRead() {
 func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	if recvErr != nil {
 		if recvErr == io.EOF {
-			GetLogger().Error("connection is closed from client : " + session.conn.RemoteAddr().String())
+			GetLogger().Error("connection is closed from client : " + session.socket.RemoteAddr().String())
 			return false
 		} else {
 			GetLogger().Error("read error : " + recvErr.Error())
@@ -122,10 +163,9 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	}
 
 	if session.recvBuffer.MoveRear(recvSize) == false {
-		GetLogger().Error("failed to receive : " + string(recvSize))
+		GetLogger().Error("failed to receive | recvSize[%d]", recvSize)
 		return false
 	}
-
 
 	netHeader := NetHeader{}
 	headerSize := util.Sizeof(reflect.ValueOf(netHeader))
@@ -135,6 +175,8 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	}
 
 	for {
+		netHeader := NetHeader{}
+
 		if session.recvBuffer.GetUseSize() <= uint32(headerSize) {
 			break
 		}
@@ -168,7 +210,6 @@ func (session *Session) onRecv(packet *Message) bool {
 	}
 
 	if packet.IsValid() == false {
-		//TODO 로그
 		return false
 	}
 
@@ -183,7 +224,7 @@ func (session *Session) onRecv(packet *Message) bool {
 		//packet.DecodeRSA() //TODO 서버 개인 키 필요
 		break
 	default:
-		//TODO 로그
+		GetLogger().Error("invalid crypto type of packet | cryptoType[%d]", cryptoType)
 		return false
 	}
 
@@ -199,18 +240,111 @@ func (session *Session) onRecv(packet *Message) bool {
 		session.node.OnRecv(packet) //TODO 콘텐츠 쪽에 전달
 		break
 	default:
-		//TODO 로그
+		GetLogger().Error("invalid packet type of packet | packetType[%d]", packetType)
 		return false
 	}
 
 	return true
 }
 
-//세션 종료 함수 : 여러 스레드(accept, recv, send) 접근 가능 (스레드 세이프)
-func (session *Session) disconnectHandler() {
-	defer session.once.Reset()
 
-	session.once.Do(func() {
-		session.Reset()
+func (session *Session) sendHandler() {
+	session.sendOnce.Do(func() {
+		go session.asyncWrite()
 	})
+}
+
+func (session *Session) asyncWrite() {
+	session.acquire()
+
+	defer func() {
+		session.release()
+		session.sendOnce.Reset()
+	}()
+
+	sendBuffer := bytes.Buffer{}
+	for len(session.sendChannel) > 0 {
+		select{
+			case msg := <- session.sendChannel:
+				sendBuffer.Write(msg.GetBuffer())
+				break
+		}
+
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	if sendBuffer.Len() <= 0 {
+		return
+	}
+
+	_ = session.socket.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	sendBytes, err := session.socket.Write(sendBuffer.Bytes())
+	if err != nil {
+		GetLogger().Error("Failed to send packet to client | err[%s] sendPacketLength[%d]", err.Error(), sendBuffer.Len())
+		return
+	}
+
+	session.node.OnSend(sendBytes)
+}
+
+//세션 종료 함수 : 여러 스레드(accept, recv, send) 접근 가능 (스레드 세이프하게 만들어야 함)
+func (session *Session) disconnectHandler() {
+	if session.canDisconnect() == false {
+		return
+	}
+
+	if err := session.socket.Close() ; err != nil{
+		//fatal
+		GetLogger().Error("Failed to socket closing | err[%s]", err.Error())
+		return
+	}
+
+	session.node.OnDisconnect()
+
+	session.Reset()
+}
+
+// acquire 세션 획득 메소드
+func (session *Session) acquire() {
+	refCount := util.InterlockIncrement(&session.ioblock.refCount)
+	if refCount == 1 {
+		//릴리즈 중인 세션이므로 릴리즈 수행
+		session.release()
+		return
+	}
+
+	if util.InterlockedCompareExchange(&session.ioblock.releaseFlag, 1, 1) == true {
+		//릴리즈 중인 세션이므로 릴리즈 수행
+		session.release()
+		return
+	}
+}
+
+// release 세션 반환 메소드
+func (session *Session) release() {
+	refCount := util.InterlockDecrement(&session.ioblock.refCount)
+	if refCount == 0 {
+		//릴리즈
+		session.disconnectHandler()
+		return
+
+	} else if refCount < 0 {
+		//fatal : 문제가 심각함
+		GetLogger().Error("session refer count is minus | refCount[%d]", refCount)
+		return
+	}
+}
+
+func (session *Session) canDisconnect() bool {
+	destIOBlock := (*int64)(unsafe.Pointer(&ioBlock{0, 1}))
+	compareIOBlock := (*int64)(unsafe.Pointer(&ioBlock{0, 0}))
+
+	originIOBlock := (*int64)(unsafe.Pointer(&session.ioblock))
+
+	if util.InterlockedCompareExchange64(originIOBlock, *destIOBlock, *compareIOBlock) == false {
+		GetLogger().Debug("Can't release | originBlock[%d]", *originIOBlock)
+		return false
+	}
+
+	return true
 }
