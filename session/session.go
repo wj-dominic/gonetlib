@@ -7,6 +7,7 @@ package session
 import (
 	"bytes"
 	"crypto/rsa"
+	"fmt"
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
 	. "gonetlib/ringbuffer"
@@ -14,6 +15,7 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -47,6 +49,7 @@ type Session struct{
 	ioblock		ioBlock
 
 	sendOnce	util.Once
+	wg 			sync.WaitGroup
 }
 
 func NewSession() *Session {
@@ -54,13 +57,15 @@ func NewSession() *Session {
 		id : 0,
 		recvBuffer: NewRingBuffer(true, 300),
 		sendChannel: make(chan *Message),
+		keys : keyChain{0, rsa.PublicKey{}},
 
 		socket: nil,
 		node :  nil,
 
 		ioblock : ioBlock {0, 0},
 
-		keys : keyChain{0, rsa.PublicKey{}},
+		sendOnce: util.Once{},
+		wg		: sync.WaitGroup{},
 	}
 }
 
@@ -125,19 +130,27 @@ func (session *Session) connectHandler() {
 
 	defer func(){
 		util.InterlockDecrement(&session.ioblock.refCount) 		//ref = 2
-		defer session.release()                    				//ref = 1
+		session.release()                    				//ref = 1
 	}()
+
+	fmt.Println("success to connect! : ", session.id)
 
 	session.node.OnConnect()
 
+	session.acquire()
 	go session.asyncRead()								//ref = 3
 }
 
 //수신 스레드
 func (session *Session) asyncRead() {
-	session.acquire()
+	fmt.Println("begin async read routine...")
+	session.wg.Add(1)
 
-	defer session.release()	//상대방과의 연결이 끊기면 릴리즈
+	defer func() {
+		session.wg.Done()
+		fmt.Println("end async read routine...")
+		session.release() //상대방과의 연결이 끊기면 릴리즈
+	}()
 
 	for {
 		buffer := session.recvBuffer.GetRearBuffer()
@@ -250,14 +263,18 @@ func (session *Session) onRecv(packet *Message) bool {
 
 func (session *Session) sendHandler() {
 	session.sendOnce.Do(func() {
+		session.acquire()
 		go session.asyncWrite()
 	})
 }
 
 func (session *Session) asyncWrite() {
-	session.acquire()
+	fmt.Println("begin async write routine...")
+	session.wg.Add(1)
 
 	defer func() {
+		session.wg.Done()
+		fmt.Println("end async write routine...")
 		session.release()
 		session.sendOnce.Reset()
 	}()
@@ -293,15 +310,21 @@ func (session *Session) disconnectHandler() {
 		return
 	}
 
+	session.wg.Wait()
+
 	if err := session.socket.Close() ; err != nil{
 		//fatal
 		GetLogger().Error("Failed to socket closing | err[%s]", err.Error())
 		return
 	}
 
+	fmt.Println("success to disconnect : ", session.id)
+
 	session.node.OnDisconnect()
 
 	session.Reset()
+
+
 }
 
 // acquire 세션 획득 메소드
@@ -343,6 +366,7 @@ func (session *Session) canDisconnect() bool {
 
 	if util.InterlockedCompareExchange64(originIOBlock, *destIOBlock, *compareIOBlock) == false {
 		GetLogger().Debug("Can't release | originBlock[%d]", *originIOBlock)
+		fmt.Printf("Can't release | originBlock[%d]", *originIOBlock)
 		return false
 	}
 
