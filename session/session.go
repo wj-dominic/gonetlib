@@ -20,6 +20,10 @@ import (
 	"unsafe"
 )
 
+const (
+	maxSendBufferSize uint32 = 300
+)
+
 type keyChain struct{
 	XOR		uint8
 	RSA 	rsa.PublicKey
@@ -56,7 +60,7 @@ func NewSession() *Session {
 	return &Session{
 		id : 0,
 		recvBuffer: NewRingBuffer(true, 300),
-		sendChannel: make(chan *Message),
+		sendChannel: make(chan *Message, maxSendBufferSize),
 		keys : keyChain{0, rsa.PublicKey{}},
 
 		socket: nil,
@@ -88,7 +92,11 @@ func (session *Session) Start() {
 
 // Close : 클라이언트 연결 종료 함수
 func (session *Session) Close() {
-	session.disconnectHandler()
+	session.acquire()
+
+	session.closesocket()
+
+	session.release()
 }
 
 // Reset : 세션 초기화 함수
@@ -120,7 +128,7 @@ func (session *Session) SendPost(packet *Message) bool {
 	session.sendChannel <- packet
 
 	session.sendHandler()
-	
+
 	return true
 }
 
@@ -166,11 +174,11 @@ func (session *Session) asyncRead() {
 // recvHandler : 수신 스레드에서만 접근
 func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	if recvErr != nil {
-		if recvErr == io.EOF {
-			GetLogger().Error("connection is closed from client : " + session.socket.RemoteAddr().String())
-			return false
-		} else {
-			GetLogger().Error("read error : " + recvErr.Error())
+			if recvErr == io.EOF {
+				GetLogger().Error("connection is closed from client : " + session.socket.RemoteAddr().String())
+				return false
+			} else {
+				GetLogger().Error("read error : " + recvErr.Error())
 			return false
 		}
 	}
@@ -207,6 +215,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 
 		packet.PushHeader(&netHeader)
 		session.recvBuffer.Read(packet.GetPayloadBuffer(), uint32(netHeader.PayloadLength))
+		packet.MoveRear(uint32(netHeader.PayloadLength))
 
 		if session.onRecv(packet) == false {
 			return false
@@ -312,19 +321,13 @@ func (session *Session) disconnectHandler() {
 
 	session.wg.Wait()
 
-	if err := session.socket.Close() ; err != nil{
-		//fatal
-		GetLogger().Error("Failed to socket closing | err[%s]", err.Error())
-		return
-	}
+	session.closesocket()
 
 	fmt.Println("success to disconnect : ", session.id)
 
 	session.node.OnDisconnect()
 
 	session.Reset()
-
-
 }
 
 // acquire 세션 획득 메소드
@@ -366,9 +369,21 @@ func (session *Session) canDisconnect() bool {
 
 	if util.InterlockedCompareExchange64(originIOBlock, *destIOBlock, *compareIOBlock) == false {
 		GetLogger().Debug("Can't release | originBlock[%d]", *originIOBlock)
-		fmt.Printf("Can't release | originBlock[%d]", *originIOBlock)
+		fmt.Printf("Can't release | originBlock[%d]\n", *originIOBlock)
 		return false
 	}
 
 	return true
+}
+
+func (session *Session) closesocket() {
+	if session.socket == nil {
+		return
+	}
+
+	_ = session.socket.Close()
+
+	if _, ok := <- session.sendChannel ; ok == true {
+		close(session.sendChannel)
+	}
 }

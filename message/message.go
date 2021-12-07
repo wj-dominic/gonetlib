@@ -16,7 +16,7 @@ import (
 
 type PacketType uint8
 const(
-	SYN 		PacketType = 1 + iota //공개키 주고 받음
+	SYN 		PacketType = 1 + iota //공개키 주고 받음, 암호화 없음
 	SYN_ACK			//패킷 코드, 키 주고 받음 (XOR 용), 이 패킷은 RSA 암호화가 기본
 	ESTABLISHED 	//이 패킷은 연결된 후 패킷, 여기서부터는 서로 공개키와 패킷 코드, 키를 알고 있으므로 인코딩은 선택하면됨
 )
@@ -37,9 +37,9 @@ type NetHeader struct{
 }
 
 const (
-	headerSize  = 6
-	payloadSize = 300
-	bufferSize  = headerSize + payloadSize
+	headerSize  uint32 = 6
+	payloadSize uint32 = 300
+	bufferSize  uint32 = headerSize + payloadSize
 )
 
 type Message struct{
@@ -68,7 +68,7 @@ func NewMessage(isLittleEndian bool) *Message {
 }
 
 func (msg *Message) GetBuffer() []byte{
-	return msg.buffer
+	return msg.buffer[:msg.rear]
 }
 
 func (msg *Message) GetHeaderBuffer() []byte{
@@ -76,15 +76,15 @@ func (msg *Message) GetHeaderBuffer() []byte{
 }
 
 func (msg *Message) GetPayloadBuffer() []byte{
-	return msg.buffer[msg.front:msg.rear]
+	return msg.buffer[msg.front:]
 }
 
 func (msg *Message) GetPayloadLength() uint32{
 	return msg.rear - msg.front
 }
 
-func (msg *Message) GetLength() int {
-	return len(msg.buffer)
+func (msg *Message) GetLength() uint32 {
+	return headerSize + msg.GetPayloadLength()
 }
 
 func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
@@ -384,6 +384,14 @@ func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
 	msg.clear()
 	copy(msg.buffer, plainMsg)
 	msg.rear += uint32(plainMsgLength)
+}
+
+func (msg *Message) MoveFront(offset uint32) {
+	msg.front += offset
+}
+
+func (msg *Message) MoveRear(offset uint32){
+	msg.rear += offset
 }
 
 func (msg *Message) clear() {

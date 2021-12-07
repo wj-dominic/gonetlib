@@ -15,15 +15,15 @@ var (
 )
 
 type MyNode struct{
-	id int
+	session *Session
 }
 
 func (node MyNode) OnConnect(){
-	fmt.Println("call OnConnect!")
+	fmt.Printf("call OnConnect! | sessionID[%d]\n", node.session.id)
 }
 
 func (node MyNode) OnDisconnect(){
-	fmt.Println("call OnDisConnect!")
+	fmt.Printf("call OnDisConnect! | sessionID[%d]\n", node.session.id)
 }
 
 func (node MyNode) OnRecv(packet *Message) bool{
@@ -32,13 +32,13 @@ func (node MyNode) OnRecv(packet *Message) bool{
 		return false
 	}
 
-	fmt.Printf("call OnRecv! | recvLength[%d]", packet.GetLength())
+	fmt.Printf("call OnRecv! | sessionID[%d] recvLength[%d]\n", node.session.id, packet.GetLength())
 
 	return true
 }
 
 func (node MyNode) OnSend(sendBytes int){
-	fmt.Printf("call OnSend! | sendBytes[%d]", sendBytes)
+	fmt.Printf("call OnSend! | sessionID[%d] sendBytes[%d]\n", node.session.id, sendBytes)
 }
 
 func TestConnect(t *testing.T){
@@ -47,7 +47,7 @@ func TestConnect(t *testing.T){
 	fmt.Println("starting server...!")
 
 	serverSession = NewSession()
-	serverNode := MyNode{}
+	serverNode := MyNode{serverSession}
 	serverSession.Setup(1, server, serverNode)
 
 	serverSession.Start()
@@ -55,14 +55,19 @@ func TestConnect(t *testing.T){
 
 
 	clientSession = NewSession()
-	clientNode := MyNode{}
+	clientNode := MyNode{clientSession}
 	clientSession.Setup(2, client, clientNode)
 
 	clientSession.Start()
 
-
 	communication()
 
+	for {
+		select{
+		case  <- time.After(10*time.Second):
+			return
+		}
+	}
 }
 
 func communication() {
@@ -71,18 +76,27 @@ func communication() {
 		return
 	}
 
+	tick := time.Tick(time.Second)
+	terminate := time.After(3 * time.Second)
+
 	for {
-		packet := NewMessage(true)
-		packet.SetHeader(SYN, XOR)
-		packet.Push("hello world")
+		select {
+		case <-terminate:
+			fmt.Println("now client session close...")
+			clientSession.Close()
+			return
 
-		if clientSession.SendPost(packet) == false {
-			fmt.Println("send post failed..")
-			break
+		case <-tick:
+			packet := NewMessage(true)
+			packet.Push("hello world")
+			packet.SetHeader(ESTABLISHED, NONE)
+
+			if clientSession.SendPost(packet) == false {
+				fmt.Println("send post failed..")
+				break
+			}
+
+			fmt.Println("success to send to server : ", packet.GetPayloadBuffer())
 		}
-
-		fmt.Println("success to send to server : ", packet.GetPayloadBuffer())
-
-		time.Sleep(10 * time.Second)
 	}
 }
