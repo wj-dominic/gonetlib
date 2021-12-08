@@ -48,8 +48,8 @@ func NewRingBuffer(isLittleEndian bool, size ...uint32) *RingBuffer{
 }
 
 func (ring *RingBuffer) Clear() {
-	ring.front = bufferSize
-	ring.rear = bufferSize
+	ring.front = 0
+	ring.rear = 0
 }
 
 func (ring *RingBuffer) GetRearBuffer() []byte {

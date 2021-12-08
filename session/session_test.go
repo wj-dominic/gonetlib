@@ -5,6 +5,7 @@ import (
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
 	"net"
+	"sync"
 	"testing"
 	"time"
 )
@@ -12,6 +13,7 @@ import (
 var (
 	serverSession *Session
 	clientSession *Session
+	wg	sync.WaitGroup
 )
 
 type MyNode struct{
@@ -60,11 +62,14 @@ func TestConnect(t *testing.T){
 
 	clientSession.Start()
 
-	communication()
+	wg.Add(1)
+	go communication()
+
+	wg.Wait()
 
 	for {
-		select{
-		case  <- time.After(10*time.Second):
+		select {
+		case <- time.After(10 * time.Second):
 			return
 		}
 	}
@@ -84,6 +89,7 @@ func communication() {
 		case <-terminate:
 			fmt.Println("now client session close...")
 			clientSession.Close()
+			wg.Done()
 			return
 
 		case <-tick:
@@ -91,9 +97,11 @@ func communication() {
 			packet.Push("hello world")
 			packet.SetHeader(ESTABLISHED, NONE)
 
-			if clientSession.SendPost(packet) == false {
-				fmt.Println("send post failed..")
-				break
+			for i := 0 ; i < 10 ; i++ {
+				if clientSession.SendPost(packet) == false {
+					fmt.Println("send post failed..")
+					break
+				}
 			}
 
 			fmt.Println("success to send to server : ", packet.GetPayloadBuffer())

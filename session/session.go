@@ -53,6 +53,7 @@ type Session struct{
 	ioblock		ioBlock
 
 	sendOnce	util.Once
+	closeOnce	util.Once
 	wg 			sync.WaitGroup
 }
 
@@ -69,6 +70,7 @@ func NewSession() *Session {
 		ioblock : ioBlock {0, 0},
 
 		sendOnce: util.Once{},
+		closeOnce: util.Once{},
 		wg		: sync.WaitGroup{},
 	}
 }
@@ -105,6 +107,7 @@ func (session *Session) Reset() {
 
 	session.socket = nil
 	session.node = nil
+	session.keys = keyChain{0, rsa.PublicKey{}}
 
 	session.recvBuffer.Clear()
 	for len(session.sendChannel) > 0 {
@@ -117,6 +120,9 @@ func (session *Session) Reset() {
 	}
 
 	session.ioblock = ioBlock{0, 0}
+
+	session.sendOnce.Reset()
+	session.closeOnce.Reset()
 }
 
 func (session *Session) SendPost(packet *Message) bool {
@@ -151,12 +157,12 @@ func (session *Session) connectHandler() {
 
 //수신 스레드
 func (session *Session) asyncRead() {
-	fmt.Println("begin async read routine...")
+	fmt.Printf("begin async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 	session.wg.Add(1)
 
 	defer func() {
 		session.wg.Done()
-		fmt.Println("end async read routine...")
+		fmt.Printf("end async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 		session.release() //상대방과의 연결이 끊기면 릴리즈
 	}()
 
@@ -278,12 +284,12 @@ func (session *Session) sendHandler() {
 }
 
 func (session *Session) asyncWrite() {
-	fmt.Println("begin async write routine...")
+	fmt.Printf("begin async write routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 	session.wg.Add(1)
 
 	defer func() {
 		session.wg.Done()
-		fmt.Println("end async write routine...")
+		fmt.Printf("end async write routine... |	sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 		session.release()
 		session.sendOnce.Reset()
 	}()
@@ -305,8 +311,9 @@ func (session *Session) asyncWrite() {
 
 	_ = session.socket.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	sendBytes, err := session.socket.Write(sendBuffer.Bytes())
-	if err != nil {
-		GetLogger().Error("Failed to send packet to client | err[%s] sendPacketLength[%d]", err.Error(), sendBuffer.Len())
+	if err != nil{
+		fmt.Printf("Failed to send packet to client | err[%s] sendBytes[%d]\n", err.Error(), sendBuffer.Len())
+		GetLogger().Error("Failed to send packet to client | err[%s] sendBytes[%d]", err.Error(), sendBuffer.Len())
 		return
 	}
 
@@ -377,13 +384,8 @@ func (session *Session) canDisconnect() bool {
 }
 
 func (session *Session) closesocket() {
-	if session.socket == nil {
-		return
-	}
-
-	_ = session.socket.Close()
-
-	if _, ok := <- session.sendChannel ; ok == true {
+	session.closeOnce.Do(func(){
+		session.socket.Close()
 		close(session.sendChannel)
-	}
+	})
 }
