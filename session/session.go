@@ -163,7 +163,7 @@ func (session *Session) asyncRead() {
 	defer func() {
 		session.wg.Done()
 		fmt.Printf("end async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
-		session.release() //상대방과의 연결이 끊기면 릴리즈
+		session.release()
 	}()
 
 	for {
@@ -329,8 +329,6 @@ func (session *Session) disconnectHandler() {
 	session.wg.Wait()
 
 	session.closesocket()
-
-	fmt.Println("success to disconnect : ", session.id)
 
 	session.node.OnDisconnect()
 

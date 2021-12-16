@@ -3,19 +3,20 @@ package gym
 import (
 	. "gonetlib/netlogger"
 	. "gonetlib/trainer"
+	. "gonetlib/routine"
 )
 
 type GymType uint8
 const (
-	Main GymType = 0
+	GymMain GymType = 0
 )
 
 type Gym struct{
 	name       	string
 	gymType		GymType
 
-	routines 	[]chan string //TODO : routine 패키지 제작 필요
-	trainers 	[]*Trainer     //TODO : routine 처리 스레드 제작 필요
+	routines 	[]chan Routine
+	trainers 	[]*Trainer
 }
 
 func NewGym(gymName string, gymType GymType) *Gym {
@@ -38,7 +39,7 @@ func (gym *Gym) Create(routineCount uint8, trainerCount uint8) bool {
 		return false
 	}
 
-	gym.routines = make([]chan string, routineCount)
+	gym.routines = make([]chan Routine, routineCount)
 	gym.trainers = make([]*Trainer, trainerCount)
 
 	for index := range gym.trainers {
@@ -49,3 +50,12 @@ func (gym *Gym) Create(routineCount uint8, trainerCount uint8) bool {
 	return true
 }
 
+func (gym *Gym) Insert(routine Routine, trainerID uint8) bool {
+	if uint8(len(gym.routines)) < trainerID {
+		GetLogger().Error("cannot found a trainer | trainerID[%d] trainerCount[%d]", trainerID, len(gym.routines))
+		return false
+	}
+
+	gym.routines[trainerID] <- routine
+	return true
+}

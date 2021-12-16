@@ -2,6 +2,7 @@ package gym
 
 import (
 	. "gonetlib/netlogger"
+	. "gonetlib/routine"
 	. "gonetlib/singleton"
 )
 
@@ -54,3 +55,11 @@ func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, rou
 	return true
 }
 
+func (gymManager *GymManager) Insert(gymType GymType, routine Routine, trainerID uint8) bool {
+	if _, exist := gymManager.gyms[gymType] ; exist == false {
+		GetLogger().Error("cannot found a gym | gymType[%d]", gymType)
+		return false
+	}
+
+	return gymManager.gyms[gymType].Insert(routine, trainerID)
+}
