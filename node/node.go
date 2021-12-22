@@ -5,6 +5,7 @@ import (
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
 	. "gonetlib/routine"
+	. "gonetlib/session"
 	"gonetlib/util"
 	"reflect"
 )
@@ -14,13 +15,23 @@ type nodeHeader struct{
 	length		uint16
 }
 
-type Node struct {
+type UserNode struct {
+	session *Session
+}
+
+func (node *UserNode) OnConnect() {
 
 }
 
+func (node *UserNode) OnDisconnect() {
 
+}
 
-func (node *Node) OnRecv(packet *Message) bool {
+func (node *UserNode) OnSend(sendBytes int) {
+	GetLogger().Info("Send bytes | size[%d]", sendBytes)
+}
+
+func (node *UserNode) OnRecv(packet *Message) bool {
 	var header nodeHeader
 
 	//컨텐츠 파트의 헤더를 확인한다.
@@ -38,6 +49,7 @@ func (node *Node) OnRecv(packet *Message) bool {
 	//헤더 길이만큼 뽑는다.
 	packet.MoveFront(uint32(headerSize))
 
+	//헤더에 있는 길이와 패킷에 남아있는 데이터의 길이가 일치해야 한다.
 	if uint16(packet.GetPayloadLength()) != header.length {
 		GetLogger().Error("packet length differ data and header | pop[%d] header[%d]", packet.GetPayloadLength(), header.length)
 		return false

@@ -2,13 +2,17 @@ package gym
 
 import (
 	. "gonetlib/netlogger"
-	. "gonetlib/trainer"
 	. "gonetlib/routine"
+	. "gonetlib/trainer"
 )
 
 type GymType uint8
 const (
 	GymMain GymType = 0
+)
+
+const (
+	maxRoutines uint16 = 300
 )
 
 type Gym struct{
@@ -28,8 +32,8 @@ func NewGym(gymName string, gymType GymType) *Gym {
 	}
 }
 
-func (gym *Gym) Create(routineCount uint8, trainerCount uint8) bool {
-	if routineCount == 0 {
+func (gym *Gym) Create(trainerCount uint8 ,routinesCount uint8) bool {
+	if routinesCount == 0 {
 		GetLogger().Error("routine count is zero")
 		return false
 	}
@@ -39,12 +43,27 @@ func (gym *Gym) Create(routineCount uint8, trainerCount uint8) bool {
 		return false
 	}
 
-	gym.routines = make([]chan Routine, routineCount)
+	gym.routines = make([]chan Routine, routinesCount)
 	gym.trainers = make([]*Trainer, trainerCount)
 
+	//루틴 채널 생성
+	for index := range gym.routines{
+		gym.routines[index] = make(chan Routine, maxRoutines)
+	}
+
+	//트레이너 생성
 	for index := range gym.trainers {
 		id := uint8(index)
-		gym.trainers[index] = NewTrainer(id)
+		routineNumber := id % routinesCount
+
+		gym.trainers[index] = NewTrainer(id, &gym.routines[routineNumber])
+
+		if gym.trainers[index] == nil {
+			GetLogger().Error("failed to create trainer | id[%d]", id)
+			return false
+		}
+
+		gym.trainers[index].Start()
 	}
 
 	return true

@@ -85,6 +85,7 @@ func (session *Session) Setup(sessionID uint64, connection net.Conn, node Node) 
 	session.socket = connection
 	session.node = node
 	session.ioblock.refCount = 1 	//릴리즈 방지를 위해 우선 1로 세팅
+	session.ioblock.releaseFlag = 0
 }
 
 // Start : 클라이언트 연결 시 호출하는 함수 (accept 스레드에서 접근)
@@ -94,7 +95,9 @@ func (session *Session) Start() {
 
 // Close : 클라이언트 연결 종료 함수
 func (session *Session) Close() {
-	session.acquire()
+	if session.acquire() == false {
+		return
+	}
 
 	session.closesocket()
 
@@ -119,10 +122,10 @@ func (session *Session) Reset() {
 		}
 	}
 
-	session.ioblock = ioBlock{0, 0}
-
 	session.sendOnce.Reset()
 	session.closeOnce.Reset()
+
+	session.ioblock = ioBlock{0, 0}
 }
 
 func (session *Session) SendPost(packet *Message) bool {
@@ -138,9 +141,15 @@ func (session *Session) SendPost(packet *Message) bool {
 	return true
 }
 
+func (session *Session) IsConnected() bool {
+	return session.id != 0 && session.ioblock.releaseFlag != 1
+}
+
 //Accept 스레드에서 접근하는 함수
 func (session *Session) connectHandler() {
-	session.acquire()									//ref = 2
+	if session.acquire() == false {							//ref = 2
+		return
+	}
 
 	defer func(){
 		util.InterlockDecrement(&session.ioblock.refCount) 		//ref = 2
@@ -151,8 +160,7 @@ func (session *Session) connectHandler() {
 
 	session.node.OnConnect()
 
-	session.acquire()
-	go session.asyncRead()								//ref = 3
+	if session.acquire() == true { go session.asyncRead() }	//ref = 3
 }
 
 //수신 스레드
@@ -278,8 +286,7 @@ func (session *Session) onRecv(packet *Message) bool {
 
 func (session *Session) sendHandler() {
 	session.sendOnce.Do(func() {
-		session.acquire()
-		go session.asyncWrite()
+		if session.acquire() == true { go session.asyncWrite() }
 	})
 }
 
@@ -336,19 +343,21 @@ func (session *Session) disconnectHandler() {
 }
 
 // acquire 세션 획득 메소드
-func (session *Session) acquire() {
+func (session *Session) acquire() bool {
 	refCount := util.InterlockIncrement(&session.ioblock.refCount)
 	if refCount == 1 {
 		//릴리즈 중인 세션이므로 릴리즈 수행
 		session.release()
-		return
+		return false
 	}
 
 	if util.InterlockedCompareExchange(&session.ioblock.releaseFlag, 1, 1) == true {
 		//릴리즈 중인 세션이므로 릴리즈 수행
 		session.release()
-		return
+		return false
 	}
+
+	return true
 }
 
 // release 세션 반환 메소드

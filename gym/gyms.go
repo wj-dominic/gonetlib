@@ -33,7 +33,7 @@ func GetGyms() *GymManager {
 	return s.GetInstance(GymsName).(*GymManager)
 }
 
-func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, routineCount uint8) bool {
+func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, routinesCount uint8) bool {
 	_, exist := gymManager.gyms[gymType]
 	if exist == true {
 		GetLogger().Warn("already has gyms : " + string(gymType))
@@ -44,7 +44,7 @@ func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, rou
 
 	gym := NewGym(gymName, gymType)
 
-	if gym.Create(trainerCount, routineCount) == false {
+	if gym.Create(trainerCount, routinesCount) == false {
 		GetLogger().Error("cannot create a gym")
 		gym = nil
 		return false
