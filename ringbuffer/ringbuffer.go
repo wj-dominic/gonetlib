@@ -376,9 +376,9 @@ func (ring *RingBuffer) getDirectWriteSize() uint32 {
 	var directWriteSize uint32
 
 	if ring.rear < ring.front {
-		directWriteSize = uint32(len(ring.buffer[ring.rear :ring.front- 1]))
+		directWriteSize = (ring.front - 1) - ring.rear
 	}else{
-		directWriteSize = uint32(len(ring.buffer[ring.rear:]))
+		directWriteSize = ring.cap - ring.rear
 		if ring.front == 0 {
 			directWriteSize -= 1
 		}

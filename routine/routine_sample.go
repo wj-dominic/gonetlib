@@ -2,20 +2,24 @@ package routine
 
 import (
 	"fmt"
-	. "gonetlib/Message"
+	. "gonetlib/message"
 	. "gonetlib/netlogger"
 )
 
 
+const (
+	SampleProtocolID uint16 = 10001
+)
+
 type ReqSampleProtocol struct{
-	name string
-	value1 uint64
-	value2 uint32
+	Name string
+	Value1 uint64
+	Value2 uint32
 }
 
 type ResSampleProtocol struct{
-	result 	string
-	value 	uint32
+	Result 	string
+	Value 	uint32
 }
 
 // SampleRoutine : 패킷 ID와 대응되는 루틴
@@ -29,6 +33,7 @@ type SampleRoutine struct {
 // 프로토콜에 해당하는 루틴 로직
 func (routine *SampleRoutine) Workout() bool {
 	fmt.Println("Proc... sample routine...")
+	fmt.Printf("name[%s] value1[%d] value2[%d]\n", routine.request.Name, routine.request.Value1, routine.request.Value2)
 
 	return true
 }
@@ -43,7 +48,7 @@ func NewSampleRoutineRegister() *SampleRoutineRegister{
 }
 
 // Make : 대응되는 루틴을 이 루틴 생성 함수에서 생성한다.
-func (register *SampleRoutineRegister) Make(packet *Message) *SampleRoutine{
+func (register *SampleRoutineRegister) Make(packet *Message) Routine{
 	if packet == nil {
 		GetLogger().Error("packet is nullptr")
 		return nil
@@ -52,7 +57,7 @@ func (register *SampleRoutineRegister) Make(packet *Message) *SampleRoutine{
 	var routine SampleRoutine
 
 	//마샬링
-	packet.Pop(&routine)
+	packet.Pop(&routine.request)
 
 	return &routine
 }

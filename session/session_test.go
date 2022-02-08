@@ -2,54 +2,51 @@ package session
 
 import (
 	"fmt"
-	. "gonetlib/message"
-	. "gonetlib/netlogger"
+	"gonetlib/gym"
+	. "gonetlib/node"
+	"gonetlib/routine"
+	"gonetlib/util"
 	"net"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 )
 
+func SendSample(node *UserNode, name string, value1 uint64, value2 uint32){
+	protocol := routine.ReqSampleProtocol{}
+	protocol.Name = name
+	protocol.Value1 = value1
+	protocol.Value2 = value2
+
+	header := NodeHeader{}
+	header.PacketID = routine.SampleProtocolID
+	header.Length = uint16(util.Sizeof(reflect.ValueOf(protocol)))
+
+	node.Send(header, protocol)
+}
+
 var (
 	serverSession *Session
 	clientSession *Session
+
+	serverNode *UserNode
+	clientNode *UserNode
+
 	wg	sync.WaitGroup
 )
 
-type MyNode struct{
-	session *Session
-}
-
-func (node MyNode) OnConnect(){
-	fmt.Printf("call OnConnect! | sessionID[%d]\n", node.session.id)
-}
-
-func (node MyNode) OnDisconnect(){
-	fmt.Printf("call OnDisConnect! | sessionID[%d]\n", node.session.id)
-}
-
-func (node MyNode) OnRecv(packet *Message) bool{
-	if packet == nil {
-		GetLogger().Error("packet is nullptr")
-		return false
-	}
-
-	fmt.Printf("call OnRecv! | sessionID[%d] recvLength[%d]\n", node.session.id, packet.GetLength())
-
-	return true
-}
-
-func (node MyNode) OnSend(sendBytes int){
-	fmt.Printf("call OnSend! | sessionID[%d] sendBytes[%d]\n", node.session.id, sendBytes)
-}
-
 func TestConnect(t *testing.T){
+	RegisterRoutine()
+
 	server, client := net.Pipe()
 
 	fmt.Println("starting server...!")
 
 	serverSession = NewSession()
-	serverNode := MyNode{serverSession}
+	serverNode = NewUserNode()
+	serverNode.SetSession(serverSession)
+
 	serverSession.Setup(1, server, serverNode)
 
 	serverSession.Start()
@@ -57,7 +54,9 @@ func TestConnect(t *testing.T){
 
 
 	clientSession = NewSession()
-	clientNode := MyNode{clientSession}
+	clientNode = NewUserNode()
+	clientNode.SetSession(clientSession)
+
 	clientSession.Setup(2, client, clientNode)
 
 	clientSession.Start()
@@ -73,6 +72,15 @@ func TestConnect(t *testing.T){
 			return
 		}
 	}
+}
+
+func RegisterRoutine() {
+	gyms := gym.GetGyms()
+	gyms.CreateGym(gym.GymMain,1, 1)
+
+	routineMaker := routine.GetRoutineMaker()
+	routineMaker.AddRegister(routine.SampleProtocolID, routine.NewSampleRoutineRegister())
+
 }
 
 func communication() {
@@ -93,18 +101,9 @@ func communication() {
 			return
 
 		case <-tick:
-			packet := NewMessage(true)
-			packet.Push("hello world")
-			packet.SetHeader(ESTABLISHED, NONE)
-
 			for i := 0 ; i < 10 ; i++ {
-				if clientSession.SendPost(packet) == false {
-					fmt.Println("send post failed..")
-					break
-				}
+				SendSample(clientNode, "dogSyeon", uint64(i * 100), uint32(i))
 			}
-
-			fmt.Println("success to send to server : ", packet.GetPayloadBuffer())
 		}
 	}
 }

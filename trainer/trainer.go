@@ -4,6 +4,7 @@ import (
 	"context"
 	. "gonetlib/netlogger"
 	. "gonetlib/routine"
+	"time"
 )
 
 type Trainer struct {
@@ -51,5 +52,7 @@ func (trainer *Trainer) workout() {
 			GetLogger().Debug("workout done..! | trainerID[%d]", trainer.id)
 			return
 		}
+
+		time.Sleep(1 * time.Millisecond)
 	}
 }

@@ -273,6 +273,11 @@ func (session *Session) onRecv(packet *Message) bool {
 		packet.Pop(&session.keys.XOR)
 		break
 	case ESTABLISHED:
+		if session.node == nil{
+			GetLogger().Error("Recv error | node is null")
+			return false
+		}
+
 		session.node.OnRecv(packet) //TODO 콘텐츠 쪽에 전달
 		break
 	default:

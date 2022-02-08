@@ -56,6 +56,11 @@ func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, rou
 }
 
 func (gymManager *GymManager) Insert(gymType GymType, routine Routine, trainerID uint8) bool {
+	if gymManager.gyms[gymType] == nil{
+		GetLogger().Error("not found a gym | gymType[%d]", gymType)
+		return false
+	}
+
 	if _, exist := gymManager.gyms[gymType] ; exist == false {
 		GetLogger().Error("cannot found a gym | gymType[%d]", gymType)
 		return false

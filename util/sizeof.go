@@ -23,9 +23,25 @@ func Sizeof(value reflect.Value) int {
 		if size, ok := structSize.Load(t); ok {
 			return size.(int)
 		}
-		size := sizeof(t)
-		structSize.Store(t, size)
-		return size
+
+		sum := 0
+		size := 0
+		for i, n := 0, value.NumField(); i < n; i++ {
+			if t.Field(i).Type.Kind() == reflect.String {
+				size = value.Field(i).Len()
+			} else {
+				size = sizeof(t.Field(i).Type)
+			}
+
+			if size < 0 {
+				return -1
+			}
+
+			sum += size
+		}
+
+		structSize.Store(t, sum)
+		return sum
 
 	default:
 		return sizeof(value.Type())
@@ -38,6 +54,9 @@ func sizeof(t reflect.Type) int {
 		if s := sizeof(t.Elem()); s >= 0 {
 			return s * t.Len()
 		}
+
+	case reflect.String:
+		return 0
 
 	case reflect.Struct:
 		sum := 0
