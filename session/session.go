@@ -55,6 +55,8 @@ type Session struct{
 	sendOnce	util.Once
 	closeOnce	util.Once
 	wg 			sync.WaitGroup
+
+	IsActive	bool
 }
 
 func NewSession() *Session {
@@ -72,6 +74,8 @@ func NewSession() *Session {
 		sendOnce: util.Once{},
 		closeOnce: util.Once{},
 		wg		: sync.WaitGroup{},
+
+		IsActive : false,
 	}
 }
 
@@ -86,6 +90,7 @@ func (session *Session) Setup(sessionID uint64, connection net.Conn, node Node) 
 	session.node = node
 	session.ioblock.refCount = 1 	//릴리즈 방지를 위해 우선 1로 세팅
 	session.ioblock.releaseFlag = 0
+	session.IsActive = true
 }
 
 // Start : 클라이언트 연결 시 호출하는 함수 (accept 스레드에서 접근)
@@ -124,7 +129,6 @@ func (session *Session) Reset() {
 
 	session.sendOnce.Reset()
 	session.closeOnce.Reset()
-
 	session.ioblock = ioBlock{0, 0}
 }
 
@@ -337,6 +341,8 @@ func (session *Session) disconnectHandler() {
 	if session.canDisconnect() == false {
 		return
 	}
+
+	session.IsActive = false
 
 	session.wg.Wait()
 
