@@ -13,27 +13,28 @@ import (
 	"reflect"
 )
 
-
 type PacketType uint8
-const(
-	SYN 		PacketType = 1 + iota //공개키 주고 받음, 암호화 없음
-	SYN_ACK			//패킷 코드, 키 주고 받음 (XOR 용), 이 패킷은 RSA 암호화가 기본
-	ESTABLISHED 	//이 패킷은 연결된 후 패킷, 여기서부터는 서로 공개키와 패킷 코드, 키를 알고 있으므로 인코딩은 선택하면됨
+
+const (
+	SYN         PacketType = 1 + iota //공개키 주고 받음, 암호화 없음
+	SYN_ACK                           //패킷 코드, 키 주고 받음 (XOR 용), 이 패킷은 RSA 암호화가 기본
+	ESTABLISHED                       //이 패킷은 연결된 후 패킷, 여기서부터는 서로 공개키와 패킷 코드, 키를 알고 있으므로 인코딩은 선택하면됨
 )
 
 type CryptoType uint8
+
 const (
-	NONE CryptoType = 0 + iota		//암호화 없음
-	XOR 							//빠른 암호화
-	RSA								//느린 암호화
+	NONE CryptoType = 0 + iota //암호화 없음
+	XOR                        //빠른 암호화
+	RSA                        //느린 암호화
 )
 
-type NetHeader struct{
-	PacketType 		PacketType
-	CryptoType    	CryptoType
-	RandKey       	uint8
-	PayloadLength 	uint16
-	CheckSum      	uint8
+type NetHeader struct {
+	PacketType    PacketType
+	CryptoType    CryptoType
+	RandKey       uint8
+	PayloadLength uint16
+	CheckSum      uint8
 }
 
 const (
@@ -42,7 +43,7 @@ const (
 	bufferSize  uint32 = headerSize + payloadSize
 )
 
-type Message struct{
+type Message struct {
 	buffer []byte
 
 	front uint32
@@ -67,19 +68,19 @@ func NewMessage(isLittleEndian bool) *Message {
 	return &msg
 }
 
-func (msg *Message) GetBuffer() []byte{
+func (msg *Message) GetBuffer() []byte {
 	return msg.buffer[:msg.rear]
 }
 
-func (msg *Message) GetHeaderBuffer() []byte{
+func (msg *Message) GetHeaderBuffer() []byte {
 	return msg.buffer[:headerSize]
 }
 
-func (msg *Message) GetPayloadBuffer() []byte{
+func (msg *Message) GetPayloadBuffer() []byte {
 	return msg.buffer[msg.front:]
 }
 
-func (msg *Message) GetPayloadLength() uint32{
+func (msg *Message) GetPayloadLength() uint32 {
 	return msg.rear - msg.front
 }
 
@@ -87,7 +88,7 @@ func (msg *Message) GetLength() uint32 {
 	return headerSize + msg.GetPayloadLength()
 }
 
-func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType){
+func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType) {
 	var header NetHeader
 	header.PacketType = packetType
 	header.CryptoType = cryptoType
@@ -190,10 +191,10 @@ func (msg *Message) Push(value interface{}) uint32 {
 	return pushSize
 }
 
-func (msg *Message) Peek(outValue interface{}) uint32{
+func (msg *Message) Peek(outValue interface{}) uint32 {
 	peekSize := uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
 
-	switch reflect.TypeOf(outValue).Kind(){
+	switch reflect.TypeOf(outValue).Kind() {
 	case reflect.Ptr:
 		switch reflect.TypeOf(outValue).Elem().Kind() {
 		case reflect.Bool:
@@ -279,7 +280,7 @@ func (msg *Message) Peek(outValue interface{}) uint32{
 		case reflect.String:
 			var length uint16
 			msg.Pop(&length)
-			tmpBuffer := msg.buffer[msg.front : msg.front+ uint32(length)]
+			tmpBuffer := msg.buffer[msg.front : msg.front+uint32(length)]
 			pOutValue := outValue.(*string)
 			*pOutValue = string(tmpBuffer)
 			peekSize = uint32(length)
@@ -289,7 +290,7 @@ func (msg *Message) Peek(outValue interface{}) uint32{
 			var length uint16
 			msg.Pop(&length)
 			pOutValue := outValue.(*[]byte)
-			*pOutValue = msg.buffer[msg.front : msg.front + uint32(length)]
+			*pOutValue = msg.buffer[msg.front : msg.front+uint32(length)]
 			peekSize = uint32(length)
 			break
 		}
@@ -307,35 +308,35 @@ func (msg *Message) Pop(outValue interface{}) uint32 {
 	return popSize
 }
 
-func (msg *Message) EncodeXOR(key uint8){
+func (msg *Message) EncodeXOR(key uint8) {
 	if msg.isCryptoType(XOR) != true {
 		//TODO_MSG :: 로그 삽입
 		return
 	}
 
 	randKey := msg.buffer[2]
-	dstBuffer := msg.buffer[headerSize- 1 : msg.rear]
+	dstBuffer := msg.buffer[headerSize-1 : msg.rear]
 
 	num := uint32(1)
 	for i := range dstBuffer {
-		p := dstBuffer[i] ^ uint8(uint32(randKey) + num)
-		dstBuffer[i] = p ^ uint8(uint32(key) + num)
+		p := dstBuffer[i] ^ uint8(uint32(randKey)+num)
+		dstBuffer[i] = p ^ uint8(uint32(key)+num)
 	}
 }
 
-func (msg *Message) DecodeXOR(key uint8){
+func (msg *Message) DecodeXOR(key uint8) {
 	if msg.isCryptoType(XOR) != true {
 		//TODO_MSG :: 로그 삽입
 		return
 	}
 
 	randKey := msg.buffer[2]
-	dstBuffer := msg.buffer[headerSize- 1 : msg.rear]
+	dstBuffer := msg.buffer[headerSize-1 : msg.rear]
 
 	num := uint32(1)
 	for i := range dstBuffer {
-		p := dstBuffer[i] ^ uint8(uint32(key) + num)
-		dstBuffer[i] = p ^ uint8(uint32(randKey) + num)
+		p := dstBuffer[i] ^ uint8(uint32(key)+num)
+		dstBuffer[i] = p ^ uint8(uint32(randKey)+num)
 	}
 
 	//체크섬 확인
@@ -348,14 +349,14 @@ func (msg *Message) DecodeXOR(key uint8){
 	}
 }
 
-func (msg *Message) EncodeRSA(clientPublicKey *rsa.PublicKey){
+func (msg *Message) EncodeRSA(clientPublicKey *rsa.PublicKey) {
 	if msg.isCryptoType(RSA) != true {
 		//TODO_MSG :: 로그 삽입
 		return
 	}
 
 	cipherMsg, err := rsa.EncryptPKCS1v15(cryptoRand.Reader, clientPublicKey, msg.buffer)
-	if err != nil{
+	if err != nil {
 		//TODO_MSG :: 로그 추가 필요
 		return
 	}
@@ -367,7 +368,7 @@ func (msg *Message) EncodeRSA(clientPublicKey *rsa.PublicKey){
 	msg.rear += uint32(cipherMsgLength)
 }
 
-func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey){
+func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey) {
 	if msg.isCryptoType(RSA) != true {
 		//TODO_MSG :: 로그 삽입
 		return
@@ -390,7 +391,7 @@ func (msg *Message) MoveFront(offset uint32) {
 	msg.front += offset
 }
 
-func (msg *Message) MoveRear(offset uint32){
+func (msg *Message) MoveRear(offset uint32) {
 	msg.rear += offset
 }
 
@@ -410,12 +411,12 @@ func (msg *Message) getFreeLength() uint32 {
 	return (payloadSize - 1) - (tempRear - tempFront)
 }
 
-func (msg *Message) generateChecksum() uint8{
+func (msg *Message) generateChecksum() uint8 {
 	var total uint32
 
 	payload := msg.buffer[msg.front:msg.rear]
 
-	for i := range payload{
+	for i := range payload {
 		total += uint32(payload[i])
 	}
 
@@ -441,21 +442,19 @@ func (msg *Message) IsValid() bool {
 	switch packetType {
 	case SYN:
 		if cryptoType != NONE {
-			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType);
+			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
 			return false
 		}
 		break
 	case SYN_ACK:
 		if cryptoType != RSA {
-			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType);
+			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
 			return false
 		}
 		break
 	case ESTABLISHED:
 		break
 	}
-
-
 	return true
 }
 
@@ -463,6 +462,6 @@ func (msg *Message) GetType() PacketType {
 	return PacketType(msg.buffer[0])
 }
 
-func (msg *Message) GetCryptoType() CryptoType{
+func (msg *Message) GetCryptoType() CryptoType {
 	return CryptoType(msg.buffer[1])
 }
