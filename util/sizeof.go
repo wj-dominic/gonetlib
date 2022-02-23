@@ -28,7 +28,7 @@ func Sizeof(value reflect.Value) int {
 		size := 0
 		for i, n := 0, value.NumField(); i < n; i++ {
 			if t.Field(i).Type.Kind() == reflect.String {
-				size = value.Field(i).Len()
+				size = value.Field(i).Len() + 2	//string len + uint16
 			} else {
 				size = sizeof(t.Field(i).Type)
 			}
