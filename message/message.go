@@ -170,12 +170,11 @@ func (msg *Message) Push(value interface{}) uint32 {
 		copy(msg.buffer[msg.rear:], value.(string))
 		break
 	case reflect.Struct:
-		structBuffer := bytes.Buffer{}
-		err := binary.Write(&structBuffer, msg.order, value)
-		if err != nil {
-			log.Fatalln(err)
+		target := reflect.ValueOf(value)
+		for i, n := 0, target.NumField() ; i < n ; i++ {
+			msg.Push(target.Field(i).Interface())
 		}
-		copy(msg.buffer[msg.rear:], structBuffer.Bytes())
+		pushSize = 0	//이미 위에서 넣기 때문에 pushsize는 0으로 변경
 		break
 	case reflect.Slice:
 		length := uint16(len(value.([]byte)))
@@ -270,6 +269,7 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 			break
 
 		case reflect.Struct:
+			//TODO : struct에 string이 있는 경우 삽입 안되는 문제 수정
 			buf := bytes.NewReader(msg.GetPayloadBuffer())
 			err := binary.Read(buf, msg.order, outValue)
 			if err != nil {
