@@ -1,7 +1,6 @@
 package message
 
 import (
-	"bytes"
 	cryptoRand "crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
@@ -168,6 +167,7 @@ func (msg *Message) Push(value interface{}) uint32 {
 		length := uint16(len(value.(string)))
 		msg.Push(length)
 		copy(msg.buffer[msg.rear:], value.(string))
+		pushSize = uint32(length)
 		break
 	case reflect.Struct:
 		target := reflect.ValueOf(value)
@@ -269,21 +269,29 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 			break
 
 		case reflect.Struct:
-			//TODO : struct에 string이 있는 경우 삽입 안되는 문제 수정
-			buf := bytes.NewReader(msg.GetPayloadBuffer())
-			err := binary.Read(buf, msg.order, outValue)
-			if err != nil {
-				fmt.Println("binary.Read failed:", err)
+			target := reflect.ValueOf(outValue).Elem()
+			tempPeekSize := uint32(0)
+			for i, n := 0, target.NumField() ; i < n ; i++ {
+				fieldPeekSize := msg.Peek(target.Field(i).Addr().Interface())
+				msg.front += fieldPeekSize
+				tempPeekSize += fieldPeekSize
 			}
+
+			if tempPeekSize != peekSize {
+				fmt.Printf("defer peek size | tempPeekSize[%d] peekSize[%d]", tempPeekSize, peekSize)
+				return 0
+			}
+
+			msg.front -= tempPeekSize
 			break
 
 		case reflect.String:
 			var length uint16
-			msg.Pop(&length)
-			tmpBuffer := msg.buffer[msg.front : msg.front+uint32(length)]
+			tempPeekSize := msg.Peek(&length)
+			tmpBuffer := msg.buffer[msg.front + tempPeekSize : msg.front+ tempPeekSize + uint32(length)]
 			pOutValue := outValue.(*string)
 			*pOutValue = string(tmpBuffer)
-			peekSize = uint32(length)
+			peekSize = uint32(length) + tempPeekSize
 			break
 
 		case reflect.Slice:

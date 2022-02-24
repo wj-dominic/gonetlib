@@ -90,7 +90,7 @@ func communication() {
 	}
 
 	tick := time.Tick(time.Second)
-	terminate := time.After(3 * time.Second)
+	terminate := time.After(10 * time.Second)
 
 	for {
 		select {
@@ -101,7 +101,7 @@ func communication() {
 			return
 
 		case <-tick:
-			for i := 0 ; i < 10 ; i++ {
+			for i := 1 ; i <= 10 ; i++ {
 				SendSample(clientNode, "dogSyeon", uint64(i * 100), uint32(i))
 			}
 		}

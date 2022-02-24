@@ -181,6 +181,7 @@ func (session *Session) asyncRead() {
 	}()
 
 	for {
+		//TOdO : 링버퍼 사이즈 안맞는거 디버깅
 		buffer := session.recvBuffer.GetRearBuffer()
 
 		recvSize, err := session.socket.Read(buffer)

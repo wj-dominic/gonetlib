@@ -16,7 +16,7 @@ func Sizeof(value reflect.Value) int {
 		return -1
 
 	case reflect.String:
-		return value.Len()
+		return value.Len() + 2 //string len + uint16
 
 	case reflect.Struct:
 		t := value.Type()
@@ -28,7 +28,7 @@ func Sizeof(value reflect.Value) int {
 		size := 0
 		for i, n := 0, value.NumField(); i < n; i++ {
 			if t.Field(i).Type.Kind() == reflect.String {
-				size = value.Field(i).Len() + 2	//string len + uint16
+				size = Sizeof(value.Field(i))	//string len + uint16
 			} else {
 				size = sizeof(t.Field(i).Type)
 			}
