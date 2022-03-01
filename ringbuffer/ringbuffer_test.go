@@ -1,37 +1,34 @@
 package ringbuffer
 
-import (
-	"fmt"
-	"testing"
-)
-
-
 const (
 	TESTING_MSG string = "1234567890 abcdefghijklmnopqrstuvwxyz 1234567890 abcdefghijklmnopqrstuvwxyz 12345 abcdefghijklmnopqrstuvwxyz @@@@@@@@@@ "
-	buff_size uint32 = 300
+	buff_size   uint32 = 300
 )
 
+/*
 func TestRingBuffer_Read(t *testing.T) {
 	ringBuffer := NewRingBuffer(true, 300)
 
-	values := []byte{1,2,3,4,5,6,7}
+	values := []byte{1, 2, 3, 4, 5, 6, 7}
 
 	fmt.Println("write : ", values)
 
 	writeLength := ringBuffer.Write(values)
-	if writeLength != uint32(len(values)){
+	if writeLength != uint32(len(values)) {
 		t.Fail()
 	}
 
-	readValues := make([]byte, len(values) + 10)
+	readValues := make([]byte, len(values)+10)
 
 	readLength := ringBuffer.Read(readValues[4:15], uint32(len(values)))
-	if readLength != uint32(len(values)){
+	if readLength != uint32(len(values)) {
 		t.Fail()
 	}
 
 	fmt.Println("read : ", readValues)
 }
+
+//*/
 
 /*
 func TestRingbuffer(t *testing.T) {
@@ -48,14 +45,17 @@ func TestRingbuffer(t *testing.T) {
 
 	var testMsg string
 	readLength := ringBuffer.Read(&testMsg, uint32(len(message)))
-	if readLength != uint32(len(message)){
+	if readLength != uint32(len(message)) {
 		t.Fail()
 	}
 
 	fmt.Println(testMsg)
 }
 
-func TestInfiniteTest(t *testing.T){
+//*/
+
+/*
+func TestInfiniteTest(t *testing.T) {
 	//무한 링버퍼 삽입 추출 테스트
 	ringBuffer := NewRingBuffer(true, 200)
 
@@ -73,11 +73,11 @@ func TestInfiniteTest(t *testing.T){
 			fmt.Println()
 		}
 
-		pushSize = uint32(rand.Intn(int(msgLength - totalPushSize)) + 1)
+		pushSize = uint32(rand.Intn(int(msgLength-totalPushSize)) + 1)
 		totalPushSize += pushSize
 
 		nextPos := lastPos + pushSize
-		pushData := msgBuffer[lastPos : nextPos]
+		pushData := msgBuffer[lastPos:nextPos]
 
 		lastPos = nextPos
 
@@ -94,4 +94,5 @@ func TestInfiniteTest(t *testing.T){
 	}
 
 }
- */
+
+//*/
