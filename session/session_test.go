@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func SendSample(node *UserNode, name string, value1 uint64, value2 uint32){
+func SendSample(node *UserNode, name string, value1 uint64, value2 uint32) {
 	protocol := routine.ReqSampleProtocol{}
 	protocol.Name = name
 	protocol.Value1 = value1
@@ -33,15 +33,13 @@ var (
 	serverNode *UserNode
 	clientNode *UserNode
 
-	wg	sync.WaitGroup
+	wg sync.WaitGroup
 )
 
-func TestConnect(t *testing.T){
+func TestConnect(t *testing.T) {
 	RegisterRoutine()
 
 	server, client := net.Pipe()
-
-	fmt.Println("starting server...!")
 
 	serverSession = NewSession()
 	serverNode = NewUserNode()
@@ -50,8 +48,6 @@ func TestConnect(t *testing.T){
 	serverSession.Setup(1, server, serverNode)
 
 	serverSession.Start()
-
-
 
 	clientSession = NewSession()
 	clientNode = NewUserNode()
@@ -68,7 +64,7 @@ func TestConnect(t *testing.T){
 
 	for {
 		select {
-		case <- time.After(10 * time.Second):
+		case <-time.After(10 * time.Second):
 			return
 		}
 	}
@@ -76,11 +72,10 @@ func TestConnect(t *testing.T){
 
 func RegisterRoutine() {
 	gyms := gym.GetGyms()
-	gyms.CreateGym(gym.GymMain,1, 1)
+	gyms.CreateGym(gym.GymMain, 1, 1)
 
 	routineMaker := routine.GetRoutineMaker()
 	routineMaker.AddRegister(routine.SampleProtocolID, routine.NewSampleRoutineRegister())
-
 }
 
 func communication() {
@@ -101,8 +96,8 @@ func communication() {
 			return
 
 		case <-tick:
-			for i := 1 ; i <= 10 ; i++ {
-				SendSample(clientNode, "dogSyeon", uint64(i * 100), uint32(i))
+			for i := 1; i <= 10; i++ {
+				SendSample(clientNode, "dogSyeon", uint64(i*100), uint32(i))
 			}
 		}
 	}

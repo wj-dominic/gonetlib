@@ -181,7 +181,6 @@ func (session *Session) asyncRead() {
 	}()
 
 	for {
-		//TOdO : 링버퍼 사이즈 안맞는거 디버깅
 		buffer := session.recvBuffer.GetRearBuffer()
 
 		recvSize, err := session.socket.Read(buffer)
@@ -287,7 +286,7 @@ func (session *Session) onRecv(packet *Message) bool {
 			return false
 		}
 
-		session.node.OnRecv(packet) //TODO 콘텐츠 쪽에 전달
+		session.node.OnRecv(packet)
 		break
 	default:
 		GetLogger().Error("invalid packet type of packet | packetType[%d]", packetType)
