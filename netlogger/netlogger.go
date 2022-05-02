@@ -20,10 +20,6 @@ const (
 
 var levelStr = [4]string{"ERROR", "WARNING", "INFO", "DEBUG"}
 
-const (
-	LoggerName string = "LOGGER"
-)
-
 type NetLogger struct {
 	logFile   *os.File
 	level     Level
@@ -34,31 +30,20 @@ type NetLogger struct {
 	isRunning bool
 }
 
-func newLogger() {
+func (l *NetLogger) Init(){
 	msg := make(chan string)
 	stop := make(chan bool)
 
-	logger := &NetLogger{
-		logFile:   nil,
-		level:     Error,
-		directory: "./",
-		logName:   "Logger.log",
-		msg:       msg,
-		stop:      stop,
-	}
-
-	s := singleton.GetSingleton()
-	s.SetInstance(LoggerName, logger)
+	l.logFile = nil
+	l.level = Error
+	l.directory = "./"
+	l.logName = "Logger.log"
+	l.msg = msg
+	l.stop = stop
 }
 
 func GetLogger() *NetLogger {
-	s := singleton.GetSingleton()
-
-	if s.GetInstance(LoggerName) == nil {
-		newLogger()
-	}
-
-	return s.GetInstance(LoggerName).(*NetLogger)
+	return singleton.GetInstance[NetLogger]()
 }
 
 func (l *NetLogger) Start() error {

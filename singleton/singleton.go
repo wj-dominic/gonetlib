@@ -1,34 +1,29 @@
 package singleton
 
 import (
+	"reflect"
 	"sync"
 )
 
-var singleton *Singleton = nil
-var once sync.Once
-
-func GetSingleton() *Singleton {
-	once.Do(func(){
-		if singleton == nil {
-			singleton = new(Singleton)
-		}
-	})
-
-	return singleton
+type Instance interface{
+	Init()
 }
 
-type Singleton struct{
-	instanceMap sync.Map
-}
+var cache 	sync.Map
 
-func (singleton *Singleton) SetInstance(name string, value interface{}) {
-	singleton.instanceMap.Store(name, value)
-}
-
-func (singleton *Singleton) GetInstance(name string) interface{} {
-	if value, exist := singleton.instanceMap.Load(name) ; exist == true {
-		return value
+func GetInstance[T any]() (t *T){
+	typeName := reflect.TypeOf(t)
+	if value, exist := cache.Load(typeName) ; exist == true{
+		return value.(*T)
 	}
 
-	return nil
+	newValue := new(T)
+	getValue, _ := cache.LoadOrStore(typeName, newValue)
+
+	if _, ok := typeName.MethodByName("Init"); ok == true{
+		instance := getValue.(Instance)
+		instance.Init()
+	}
+
+	return getValue.(*T)
 }

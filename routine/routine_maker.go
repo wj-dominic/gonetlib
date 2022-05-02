@@ -6,10 +6,6 @@ import (
 	. "gonetlib/singleton"
 )
 
-const (
-	routineMakerName string = "ROUTINE_MAKER"
-)
-
 type routineRegister interface{
 	Make(packet *Message) Routine
 }
@@ -18,23 +14,12 @@ type routineMaker struct{
 	routineFactory	map[uint16]routineRegister
 }
 
-func newMaker() {
-	routineMaker := &routineMaker{
-		routineFactory: make(map[uint16]routineRegister),
-	}
-
-	s := GetSingleton()
-	s.SetInstance(routineMakerName, routineMaker)
+func (maker *routineMaker) Init(){
+	maker.routineFactory = make(map[uint16]routineRegister)
 }
 
 func GetRoutineMaker() *routineMaker {
-	s := GetSingleton()
-
-	if s.GetInstance(routineMakerName) == nil {
-		newMaker()
-	}
-
-	return s.GetInstance(routineMakerName).(*routineMaker)
+	return GetInstance[routineMaker]()
 }
 
 // MakeRoutine : id에 해당 되는 루틴 생성 함수를 찾고 여기서 루틴을 생성한다.

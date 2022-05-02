@@ -14,23 +14,14 @@ type GymManager struct {
 	gyms	map[GymType]*Gym
 }
 
-func newGyms() {
-	gymManager := &GymManager{
+func newGyms() *GymManager{
+	return &GymManager{
 		gyms : make(map[GymType]*Gym),
 	}
-
-	s := GetSingleton()
-	s.SetInstance(GymsName, gymManager)
 }
 
 func GetGyms() *GymManager {
-	s := GetSingleton()
-
-	if s.GetInstance(GymsName) == nil {
-		newGyms()
-	}
-
-	return s.GetInstance(GymsName).(*GymManager)
+	return GetInstance[GymManager](newGyms)
 }
 
 func (gymManager *GymManager) CreateGym(gymType GymType, trainerCount uint8, routinesCount uint8) bool {
