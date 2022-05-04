@@ -3,7 +3,7 @@ package routine
 import (
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
-	. "gonetlib/singleton"
+	. "gonetlib/util"
 )
 
 type routineRegister interface{

@@ -2,7 +2,7 @@ package netlogger
 
 import (
 	"fmt"
-	"gonetlib/singleton"
+	"gonetlib/util"
 	"os"
 	"path/filepath"
 	"time"
@@ -43,7 +43,7 @@ func (l *NetLogger) Init(){
 }
 
 func GetLogger() *NetLogger {
-	return singleton.GetInstance[NetLogger]()
+	return util.GetInstance[NetLogger]()
 }
 
 func (l *NetLogger) Start() error {

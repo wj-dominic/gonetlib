@@ -286,8 +286,8 @@ func (session *Session) onRecv(packet *Message) bool {
 			return false
 		}
 
-		session.node.OnRecv(packet)
-		break
+		return session.node.OnRecv(packet)
+
 	default:
 		GetLogger().Error("invalid packet type of packet | packetType[%d]", packetType)
 		return false

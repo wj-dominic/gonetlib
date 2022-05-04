@@ -3,7 +3,7 @@ package gym
 import (
 	. "gonetlib/netlogger"
 	. "gonetlib/routine"
-	. "gonetlib/singleton"
+	. "gonetlib/util"
 )
 
 const (

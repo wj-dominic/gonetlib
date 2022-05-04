@@ -1,11 +1,12 @@
 package node
 
 import (
+	"gonetlib/Task"
 	. "gonetlib/gym"
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
 	. "gonetlib/routine"
-	"gonetlib/util"
+	. "gonetlib/util"
 	"reflect"
 )
 
@@ -55,7 +56,7 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 	//패킷에서 헤더 값을 뽑는다. 패킷에 헤더에 정의된 길이 만큼의 데이터가 없을 수 있으므로 Peek으로 뽑느다.
 	packet.Peek(&header)
 
-	headerSize := uint16(util.Sizeof(reflect.ValueOf(header)))
+	headerSize := uint16(Sizeof(reflect.ValueOf(header)))
 	payloadSize := headerSize + header.Length
 
 	if uint16(packet.GetPayloadLength()) < payloadSize {
@@ -72,8 +73,12 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 		return false
 	}
 
+	task := Task.GetTaskFactory().CreateTask(header.PacketID, packet)
+
 	//packetID에 맞는 루틴을 생성한다.
-	routine := GetRoutineMaker().MakeRoutine(header.PacketID, packet)
+	//routine := GetRoutineMaker().MakeRoutine(header.PacketID, packet)
+
+	//TODO :: 루틴에서 Task로 변경하기
 
 	//루틴을 체육관에 넣는다.
 	if GetGyms().Insert(GymMain, routine, 0) == false {
