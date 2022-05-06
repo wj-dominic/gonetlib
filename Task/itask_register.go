@@ -1,6 +1,8 @@
-package Task
+package task
 
-import "gonetlib/message"
+import (
+	"gonetlib/message"
+)
 
 type ITaskRegister interface {
 	CreateTask(packet *message.Message) *ITask

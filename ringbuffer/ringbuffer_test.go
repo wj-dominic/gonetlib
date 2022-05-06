@@ -1,11 +1,16 @@
 package ringbuffer
 
+import (
+	"fmt"
+	"testing"
+)
+
 const (
 	TESTING_MSG string = "1234567890 abcdefghijklmnopqrstuvwxyz 1234567890 abcdefghijklmnopqrstuvwxyz 12345 abcdefghijklmnopqrstuvwxyz @@@@@@@@@@ "
 	buff_size   uint32 = 300
 )
 
-/*
+//*
 func TestRingBuffer_Read(t *testing.T) {
 	ringBuffer := NewRingBuffer(true, 300)
 

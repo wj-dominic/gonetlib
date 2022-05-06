@@ -1,20 +1,20 @@
 package node
 
 import (
-	"gonetlib/Task"
 	. "gonetlib/gym"
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
 	. "gonetlib/routine"
+	"gonetlib/task"
 	. "gonetlib/util"
 	"reflect"
 )
 
-type ISession interface{
+type ISession interface {
 	SendPost(packet *Message) bool
 }
 
-type NodeHeader struct{
+type NodeHeader struct {
 	PacketID uint16
 	Length   uint16
 }
@@ -23,14 +23,14 @@ type UserNode struct {
 	session ISession
 }
 
-func NewUserNode() *UserNode{
+func NewUserNode() *UserNode {
 	return &UserNode{
-		session : nil,
+		session: nil,
 	}
 }
 
-func (node *UserNode) SetSession(session ISession){
-	if session == nil{
+func (node *UserNode) SetSession(session ISession) {
+	if session == nil {
 		return
 	}
 
@@ -73,12 +73,13 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 		return false
 	}
 
-	task := Task.GetTaskFactory().CreateTask(header.PacketID, packet)
+	newTask := task.Factory().CreateTask(header.PacketID, packet)
 
-	//packetID에 맞는 루틴을 생성한다.
-	//routine := GetRoutineMaker().MakeRoutine(header.PacketID, packet)
+	//Task 실행을 위해 Task를 bucket에 넣기
 
 	//TODO :: 루틴에서 Task로 변경하기
+
+	task.Bucket(1).Insert(newTask)
 
 	//루틴을 체육관에 넣는다.
 	if GetGyms().Insert(GymMain, routine, 0) == false {

@@ -2,7 +2,7 @@ package netlogger
 
 import (
 	"fmt"
-	"gonetlib/util"
+	"gonetlib/util/singleton"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,7 +30,7 @@ type NetLogger struct {
 	isRunning bool
 }
 
-func (l *NetLogger) Init(){
+func (l *NetLogger) Init() {
 	msg := make(chan string)
 	stop := make(chan bool)
 
@@ -43,7 +43,7 @@ func (l *NetLogger) Init(){
 }
 
 func GetLogger() *NetLogger {
-	return util.GetInstance[NetLogger]()
+	return singleton.GetInstance[NetLogger]()
 }
 
 func (l *NetLogger) Start() error {

@@ -1,4 +1,4 @@
-package Task
+package task
 
 type ITask interface {
 	Run() bool
