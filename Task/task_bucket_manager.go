@@ -1,6 +1,20 @@
 package task
 
-import "gonetlib/netlogger"
+import (
+	"gonetlib/netlogger"
+	"gonetlib/util/singleton"
+)
+
+func GetBucket(bucketID uint16) *TaskBucket {
+	var bucketManager *TaskBucketManager = singleton.GetInstance[TaskBucketManager]()
+	if _, exist := bucketManager.buckets[bucketID]; exist == false {
+		if bucketManager.CreateBucket(bucketID, 1, 1) == false {
+			return nil
+		}
+	}
+
+	return bucketManager.buckets[bucketID]
+}
 
 type TaskBucketManager struct {
 	buckets map[uint16]*TaskBucket
@@ -10,27 +24,19 @@ func (m *TaskBucketManager) Init() {
 	m.buckets = make(map[uint16]*TaskBucket)
 }
 
-func (m *TaskBucketManager) CreateBucket(bucketID uint16, maxInvokerSize uint8, maxTaskSize uint8) bool {
+func (m *TaskBucketManager) CreateBucket(bucketID uint16, maxInvokers uint8, maxBuckets uint8) bool {
 	if _, exist := m.buckets[bucketID]; exist == true {
 		netlogger.GetLogger().Warn("already has bucket | id[%d]", bucketID)
 		return false
 	}
 
-	bucket := NewBucket(bucketID, maxInvokerSize, maxTaskSize)
+	bucket := NewBucket(bucketID, maxInvokers, maxBuckets)
 	if bucket == nil {
 		netlogger.GetLogger().Warn("Failed to create new bucket | id[%d]", bucketID)
 		return false
 	}
 
-	gym := NewGym(gymName, gymType)
-
-	if gym.Create(trainerCount, routinesCount) == false {
-		GetLogger().Error("cannot create a gym")
-		gym = nil
-		return false
-	}
-
-	gymManager.gyms[gymType] = gym
+	m.buckets[bucketID] = bucket
 
 	return true
 }

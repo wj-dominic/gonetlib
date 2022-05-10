@@ -8,20 +8,9 @@ import (
 	"sync"
 )
 
-type TaskFactory struct {
-	TaskRegisters sync.Map
-}
-
-func Factory() *TaskFactory {
-	return singleton.GetInstance[TaskFactory]()
-}
-
-func (factory *TaskFactory) Init() {
-	factory.TaskRegisters = sync.Map{}
-}
-
-func (factory *TaskFactory) CreateTask(taskID uint16, packet *message.Message) *ITask {
-	taskRegister, exist := factory.TaskRegisters.Load(taskID)
+func CreateTask(taskID uint16, packet *message.Message) ITask {
+	var factory *TaskFactory = singleton.GetInstance[TaskFactory]()
+	taskRegister, exist := factory.taskRegisters.Load(taskID)
 	if exist == false {
 		netlogger.GetLogger().Error("Not found task register | taskID[%d]", taskID)
 		return nil
@@ -36,18 +25,26 @@ func (factory *TaskFactory) CreateTask(taskID uint16, packet *message.Message) *
 	return newTask
 }
 
+type TaskFactory struct {
+	taskRegisters sync.Map
+}
+
+func (factory *TaskFactory) Init() {
+	factory.taskRegisters = sync.Map{}
+}
+
 func (factory *TaskFactory) AddRegister(taskID uint16, register ITaskRegister) bool {
 	if register == nil {
 		netlogger.GetLogger().Error("Invalid register | taskID[%d] register[%s]", taskID, reflect.TypeOf(register).Name())
 		return false
 	}
 
-	if _, exist := factory.TaskRegisters.Load(taskID); exist == true {
+	if _, exist := factory.taskRegisters.Load(taskID); exist == true {
 		netlogger.GetLogger().Warn("Already has register in the factory | taskID[%d] register[%s]", taskID, reflect.TypeOf(register).Name())
 		return false
 	}
 
-	factory.TaskRegisters.Store(taskID, register)
+	factory.taskRegisters.Store(taskID, register)
 
 	return true
 }

@@ -5,5 +5,5 @@ import (
 )
 
 type ITaskRegister interface {
-	CreateTask(packet *message.Message) *ITask
+	CreateTask(packet *message.Message) ITask
 }

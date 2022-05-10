@@ -1,10 +1,8 @@
 package node
 
 import (
-	. "gonetlib/gym"
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
-	. "gonetlib/routine"
 	"gonetlib/task"
 	. "gonetlib/util"
 	"reflect"
@@ -73,17 +71,15 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 		return false
 	}
 
-	newTask := task.Factory().CreateTask(header.PacketID, packet)
+	newTask := task.CreateTask(header.PacketID, packet)
+	bucket := task.GetBucket(0)
+	if bucket == nil {
+		GetLogger().Error("Not found bucket | bucketID[%d]", 0)
+		return false
+	}
 
-	//Task 실행을 위해 Task를 bucket에 넣기
-
-	//TODO :: 루틴에서 Task로 변경하기
-
-	task.Bucket(1).Insert(newTask)
-
-	//루틴을 체육관에 넣는다.
-	if GetGyms().Insert(GymMain, routine, 0) == false {
-		GetLogger().Error("failed to insert a routine")
+	if bucket.AddTask(newTask, 0) == false {
+		GetLogger().Error("failed to insert a task")
 		return false
 	}
 
