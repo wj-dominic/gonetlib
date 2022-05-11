@@ -2,9 +2,8 @@ package session
 
 import (
 	"fmt"
-	"gonetlib/gym"
 	. "gonetlib/node"
-	"gonetlib/routine"
+	"gonetlib/session/sample_test"
 	"gonetlib/util"
 	"net"
 	"reflect"
@@ -13,14 +12,11 @@ import (
 	"time"
 )
 
-func SendSample(node *UserNode, name string, value1 uint64, value2 uint32) {
-	protocol := routine.ReqSampleProtocol{}
-	protocol.Name = name
-	protocol.Value1 = value1
-	protocol.Value2 = value2
+func SendMessage(node *UserNode, message string){
+	id, protocol := sample_test.NEW_PACKET_REQ_ECHO(message)
 
 	header := NodeHeader{}
-	header.PacketID = routine.SampleProtocolID
+	header.PacketID = id
 	header.Length = uint16(util.Sizeof(reflect.ValueOf(protocol)))
 
 	node.Send(header, protocol)
@@ -30,30 +26,21 @@ var (
 	serverSession *Session
 	clientSession *Session
 
-	serverNode *UserNode
-	clientNode *UserNode
-
 	wg sync.WaitGroup
 )
 
 func TestConnect(t *testing.T) {
-	RegisterRoutine()
+	RegisterTask()
 
 	server, client := net.Pipe()
 
 	serverSession = NewSession()
-	serverNode = NewUserNode()
-	serverNode.SetSession(serverSession)
-
-	serverSession.Setup(1, server, serverNode)
+	serverSession.Setup(1, server, NewUserNode(serverSession))
 
 	serverSession.Start()
 
 	clientSession = NewSession()
-	clientNode = NewUserNode()
-	clientNode.SetSession(clientSession)
-
-	clientSession.Setup(2, client, clientNode)
+	clientSession.Setup(2, client, NewUserNode(clientSession))
 
 	clientSession.Start()
 
@@ -70,13 +57,11 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-func RegisterRoutine() {
-	gyms := gym.GetGyms()
-	gyms.CreateGym(gym.GymMain, 1, 1)
 
-	routineMaker := routine.GetRoutineMaker()
-	routineMaker.AddRegister(routine.SampleProtocolID, routine.NewSampleRoutineRegister())
+func RegisterTask() {
+	sample_test.AddTaskRegister_REQ_ECHO()
 }
+
 
 func communication() {
 	if clientSession == nil {
@@ -97,7 +82,7 @@ func communication() {
 
 		case <-tick:
 			for i := 1; i <= 10; i++ {
-				SendSample(clientNode, "dogSyeon", uint64(i*100), uint32(i))
+				SendMessage(clientSession.GetNode().(*UserNode), fmt.Sprintf( "hi my name is... %d", i))
 			}
 		}
 	}

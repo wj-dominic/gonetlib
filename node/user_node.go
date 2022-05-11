@@ -8,10 +8,6 @@ import (
 	"reflect"
 )
 
-type ISession interface {
-	SendPost(packet *Message) bool
-}
-
 type NodeHeader struct {
 	PacketID uint16
 	Length   uint16
@@ -21,18 +17,14 @@ type UserNode struct {
 	session ISession
 }
 
-func NewUserNode() *UserNode {
-	return &UserNode{
-		session: nil,
-	}
-}
-
-func (node *UserNode) SetSession(session ISession) {
+func NewUserNode(session ISession) *UserNode {
 	if session == nil {
-		return
+		return nil
 	}
 
-	node.session = session
+	return &UserNode{
+		session: session,
+	}
 }
 
 func (node *UserNode) OnConnect() {

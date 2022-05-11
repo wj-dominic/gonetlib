@@ -29,13 +29,6 @@ type keyChain struct {
 	RSA rsa.PublicKey
 }
 
-type Node interface {
-	OnConnect()
-	OnDisconnect()
-	OnRecv(packet *Message) bool
-	OnSend(sendBytes int)
-}
-
 type ioBlock struct {
 	refCount    int32
 	releaseFlag int32
@@ -47,10 +40,10 @@ type Session struct {
 	sendChannel chan *Message //송신 버퍼, 송신이 필요한 모든 스레드에서 접근 (채널이어서 thread safe O)
 	keys        keyChain
 
-	socket net.Conn //TCP connection
-	node   Node
+	socket 		net.Conn //TCP connection
+	node INode
 
-	ioblock ioBlock
+	ioblock 	ioBlock
 
 	sendOnce  util.Once
 	closeOnce util.Once
@@ -79,7 +72,7 @@ func NewSession() *Session {
 	}
 }
 
-func (session *Session) Setup(sessionID uint64, connection net.Conn, node Node) {
+func (session *Session) Setup(sessionID uint64, connection net.Conn, node INode) {
 	if connection == nil {
 		GetLogger().Error("connection is nullptr")
 		return
@@ -147,6 +140,10 @@ func (session *Session) SendPost(packet *Message) bool {
 
 func (session *Session) IsConnected() bool {
 	return session.id != 0 && session.ioblock.releaseFlag != 1
+}
+
+func (session *Session) GetNode() INode {
+	return session.node
 }
 
 //Accept 스레드에서 접근하는 함수

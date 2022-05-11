@@ -42,7 +42,7 @@ func (sm *SessionManager) RequestNewSession(conn net.Conn /* conn, node */) erro
 		return err
 	}
 
-	node := node.NewUserNode()
+	node := node.NewUserNode(session)
 
 	session.Setup(sessionId, conn, node)
 	session.Start()
