@@ -171,10 +171,10 @@ func (msg *Message) Push(value interface{}) uint32 {
 		break
 	case reflect.Struct:
 		target := reflect.ValueOf(value)
-		for i, n := 0, target.NumField() ; i < n ; i++ {
+		for i, n := 0, target.NumField(); i < n; i++ {
 			msg.Push(target.Field(i).Interface()) //TODO :: It panics if the Value was obtained by accessing unexported struct fields. 문제 해결
 		}
-		pushSize = 0	//이미 위에서 넣기 때문에 pushsize는 0으로 변경
+		pushSize = 0 //이미 위에서 넣기 때문에 pushsize는 0으로 변경
 		break
 	case reflect.Slice:
 		length := uint16(len(value.([]byte)))
@@ -271,15 +271,10 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 		case reflect.Struct:
 			target := reflect.ValueOf(outValue).Elem()
 			tempPeekSize := uint32(0)
-			for i, n := 0, target.NumField() ; i < n ; i++ {
+			for i, n := 0, target.NumField(); i < n; i++ {
 				fieldPeekSize := msg.Peek(target.Field(i).Addr().Interface())
 				msg.front += fieldPeekSize
 				tempPeekSize += fieldPeekSize
-			}
-
-			if tempPeekSize != peekSize {
-				fmt.Printf("defer peek size | tempPeekSize[%d] peekSize[%d]", tempPeekSize, peekSize)
-				return 0
 			}
 
 			msg.front -= tempPeekSize
@@ -288,7 +283,7 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 		case reflect.String:
 			var length uint16
 			tempPeekSize := msg.Peek(&length)
-			tmpBuffer := msg.buffer[msg.front + tempPeekSize : msg.front+ tempPeekSize + uint32(length)]
+			tmpBuffer := msg.buffer[msg.front+tempPeekSize : msg.front+tempPeekSize+uint32(length)]
 			pOutValue := outValue.(*string)
 			*pOutValue = string(tmpBuffer)
 			peekSize = uint32(length) + tempPeekSize
@@ -450,13 +445,13 @@ func (msg *Message) IsValid() bool {
 	switch packetType {
 	case SYN:
 		if cryptoType != NONE {
-			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
+			fmt.Printf("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
 			return false
 		}
 		break
 	case SYN_ACK:
 		if cryptoType != RSA {
-			GetLogger().Error("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
+			fmt.Printf("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
 			return false
 		}
 		break

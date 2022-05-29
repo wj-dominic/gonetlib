@@ -1,6 +1,7 @@
 package node
 
 import (
+	"fmt"
 	. "gonetlib/message"
 	. "gonetlib/netlogger"
 	"gonetlib/task"
@@ -50,7 +51,7 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 	payloadSize := headerSize + header.Length
 
 	if uint16(packet.GetPayloadLength()) < payloadSize {
-		GetLogger().Error("invalid payload Length | packet[%d] header[%d]", packet.GetPayloadLength(), payloadSize)
+		fmt.Printf("invalid payload Length | packet[%d] header[%d]", packet.GetPayloadLength(), payloadSize)
 		return false
 	}
 
@@ -59,19 +60,19 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 
 	//헤더에 있는 길이와 패킷에 남아있는 데이터의 길이가 일치해야 한다.
 	if uint16(packet.GetPayloadLength()) != header.Length {
-		GetLogger().Error("packet Length differ data and header | pop[%d] header[%d]", packet.GetPayloadLength(), header.Length)
+		fmt.Printf("packet Length differ data and header | pop[%d] header[%d]", packet.GetPayloadLength(), header.Length)
 		return false
 	}
 
 	newTask := task.CreateTask(header.PacketID, packet)
 	bucket := task.GetBucket(0)
 	if bucket == nil {
-		GetLogger().Error("Not found bucket | bucketID[%d]", 0)
+		fmt.Printf("Not found bucket | bucketID[%d]", 0)
 		return false
 	}
 
 	if bucket.AddTask(newTask, 0) == false {
-		GetLogger().Error("failed to insert a task")
+		fmt.Printf("failed to insert a task")
 		return false
 	}
 

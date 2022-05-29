@@ -40,10 +40,10 @@ type Session struct {
 	sendChannel chan *Message //송신 버퍼, 송신이 필요한 모든 스레드에서 접근 (채널이어서 thread safe O)
 	keys        keyChain
 
-	socket 		net.Conn //TCP connection
-	node INode
+	socket net.Conn //TCP connection
+	node   INode
 
-	ioblock 	ioBlock
+	ioblock ioBlock
 
 	sendOnce  util.Once
 	closeOnce util.Once
@@ -193,15 +193,18 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	if recvErr != nil {
 		if recvErr == io.EOF {
 			GetLogger().Error("connection is closed from client : " + session.socket.RemoteAddr().String())
+			fmt.Printf("connection is closed from client : %s", session.socket.RemoteAddr().String())
 			return false
 		} else {
 			GetLogger().Error("read error : " + recvErr.Error())
+			fmt.Printf("read error : %s", recvErr.Error())
 			return false
 		}
 	}
 
 	if session.recvBuffer.MoveRear(recvSize) == false {
-		GetLogger().Error("failed to receive | recvSize[%d]", recvSize)
+		//GetLogger().Error("failed to receive | recvSize[%d]", recvSize)
+		fmt.Printf("failed to receive | recvSize[%d]\n", recvSize)
 		return false
 	}
 
@@ -209,6 +212,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	headerSize := util.Sizeof(reflect.ValueOf(netHeader))
 	if headerSize == -1 {
 		GetLogger().Error("header size was wrong...")
+		fmt.Printf("header size was wrong...")
 		return false
 	}
 
@@ -235,6 +239,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 		packet.MoveRear(uint32(netHeader.PayloadLength))
 
 		if session.onRecv(packet) == false {
+			fmt.Printf("on recv is false")
 			return false
 		}
 	}
@@ -245,6 +250,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 //패킷 수신 이벤트 함수 : 수신 스레드에서만 접근
 func (session *Session) onRecv(packet *Message) bool {
 	if packet == nil {
+		fmt.Printf("packet is nil")
 		return false
 	}
 
@@ -261,7 +267,7 @@ func (session *Session) onRecv(packet *Message) bool {
 		packet.DecodeXOR(session.keys.XOR)
 		break
 	case RSA:
-		//packet.DecodeRSA() //TODO 서버 개인 키 필요
+		//packet.DecodeRSA() //TODO: 서버 개인 키 필요
 		break
 	default:
 		GetLogger().Error("invalid crypto type of packet | cryptoType[%d]", cryptoType)
@@ -283,7 +289,10 @@ func (session *Session) onRecv(packet *Message) bool {
 			return false
 		}
 
-		return session.node.OnRecv(packet)
+		if session.node.OnRecv(packet) == false {
+			fmt.Printf("node on recv is false")
+			return false
+		}
 
 	default:
 		GetLogger().Error("invalid packet type of packet | packetType[%d]", packetType)

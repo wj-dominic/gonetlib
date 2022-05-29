@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func SendMessage(node *UserNode, message string){
+func SendMessage(node *UserNode, message string) {
 	id, protocol := sample_test.NEW_PACKET_REQ_ECHO(message)
 
 	header := NodeHeader{}
@@ -57,11 +57,9 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-
 func RegisterTask() {
 	sample_test.AddTaskRegister_REQ_ECHO()
 }
-
 
 func communication() {
 	if clientSession == nil {
@@ -82,7 +80,7 @@ func communication() {
 
 		case <-tick:
 			for i := 1; i <= 10; i++ {
-				SendMessage(clientSession.GetNode().(*UserNode), fmt.Sprintf( "hi my name is... %d", i))
+				SendMessage(clientSession.GetNode().(*UserNode), fmt.Sprintf("hi my name is... %d", i))
 			}
 		}
 	}
