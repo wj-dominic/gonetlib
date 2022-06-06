@@ -6,6 +6,8 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"path/filepath"
+	"strings"
 )
 
 type Field struct {
@@ -14,16 +16,24 @@ type Field struct {
 }
 
 type IDLParser struct {
-	IdlMap map[string]map[string][]Field
+	IdlMap    map[string]map[string][]Field
+	IdlPkgMap map[string]string
+	IsParsed  bool
 }
 
 func NewIDLParser() *IDLParser {
 	return &IDLParser{
-		IdlMap: make(map[string]map[string][]Field),
+		IdlMap:    make(map[string]map[string][]Field),
+		IdlPkgMap: make(map[string]string),
+		IsParsed:  false,
 	}
 }
 
 func (p *IDLParser) Parse(path string) bool {
+	p.IsParsed = false
+
+	p.clearMap()
+
 	if len(path) <= 0 {
 		return false
 	}
@@ -40,8 +50,11 @@ func (p *IDLParser) Parse(path string) bool {
 		return false
 	}
 
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
+	for pkgName, pkg := range pkgs {
+		for fileName, file := range pkg.Files {
+			fileName = filepath.Base(fileName)
+			fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+
 			for _, node := range file.Decls {
 				switch node.(type) {
 				case *ast.GenDecl:
@@ -52,23 +65,24 @@ func (p *IDLParser) Parse(path string) bool {
 							typeSpec := spec.(*ast.TypeSpec)
 							switch typeSpec.Type.(type) {
 							case *ast.StructType:
-								if _, exist := p.IdlMap[file.Name.Name]; exist == false {
-									p.IdlMap[file.Name.Name] = make(map[string][]Field)
+								if _, exist := p.IdlMap[fileName]; exist == false {
+									p.IdlMap[fileName] = make(map[string][]Field)
 								}
 
 								structType := typeSpec.Type.(*ast.StructType)
-								if _, exist := p.IdlMap[file.Name.Name][typeSpec.Name.Name]; exist == true {
+								if _, exist := p.IdlMap[fileName][typeSpec.Name.Name]; exist == true {
 									continue
 								}
 
-								p.IdlMap[file.Name.Name][typeSpec.Name.Name] = make([]Field, len(structType.Fields.List))
+								p.IdlMap[fileName][typeSpec.Name.Name] = make([]Field, len(structType.Fields.List))
+								p.IdlPkgMap[fileName] = pkgName
 
 								for index, field := range structType.Fields.List {
 									fieldType := field.Type
 									typeString := types.ExprString(fieldType)
 									for _, fieldName := range field.Names {
 										tmpField := Field{Name: fieldName.Name, Type: typeString}
-										p.IdlMap[file.Name.Name][typeSpec.Name.Name][index] = tmpField
+										p.IdlMap[fileName][typeSpec.Name.Name][index] = tmpField
 									}
 								}
 							}
@@ -79,5 +93,17 @@ func (p *IDLParser) Parse(path string) bool {
 		}
 	}
 
+	p.IsParsed = true
+
 	return true
+}
+
+func (p *IDLParser) clearMap() {
+	for k := range p.IdlMap {
+		for j := range p.IdlMap[k] {
+			delete(p.IdlMap[k], j)
+		}
+
+		delete(p.IdlMap, k)
+	}
 }

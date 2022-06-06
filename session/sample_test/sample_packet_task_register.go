@@ -10,7 +10,7 @@ import (
 type TASK_REGISTER_REQ_ECHO struct {
 }
 
-func (r *TASK_REGISTER_REQ_ECHO) CreateTask(packet *message.Message) task.ITask{
+func (r *TASK_REGISTER_REQ_ECHO) CreateTask(packet *message.Message) task.ITask {
 	if packet == nil {
 		netlogger.GetLogger().Error("packet is nullptr")
 		return nil
@@ -23,6 +23,6 @@ func (r *TASK_REGISTER_REQ_ECHO) CreateTask(packet *message.Message) task.ITask{
 	return &newTask
 }
 
-func AddTaskRegister_REQ_ECHO(){
+func AddTaskRegister_REQ_ECHO() {
 	task.AddTaskRegister(REQ_ECHO, &TASK_REGISTER_REQ_ECHO{})
 }

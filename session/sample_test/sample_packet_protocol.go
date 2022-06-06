@@ -1,7 +1,12 @@
 package sample_test
 
+type PACKET_COMMON struct {
+	id uint16
+}
+
 //TODO :: 사용자 정의 영역
 type PACKET_REQ_ECHO struct {
+	PACKET_COMMON
 	Message string
 }
 

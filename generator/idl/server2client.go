@@ -1,4 +1,4 @@
-package server2client
+package idl
 
 import "container/list"
 
