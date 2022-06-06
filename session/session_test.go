@@ -58,6 +58,7 @@ func TestConnect(t *testing.T) {
 }
 
 func RegisterTask() {
+
 	sample_test.AddTaskRegister_REQ_ECHO()
 }
 

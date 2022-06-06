@@ -24,13 +24,10 @@ func NewGenerator() *Generator {
 
 func (g *Generator) Generate(idlPath string) bool {
 	g.GenRootDir = idlPath
-
-	//기존 gen 파일 제거
-	if g.deleteFiles() == false {
+	if g.deleteGenFiles() == false {
 		return false
 	}
 
-	//.go 파일 파싱
 	if g.parser.Parse(idlPath) == false {
 		return false
 	}
@@ -39,12 +36,10 @@ func (g *Generator) Generate(idlPath string) bool {
 		return false
 	}
 
-	//protocol 세팅 인터페이스 생성
 	if g.makePacketConstructor() == false {
 		return false
 	}
 
-	//task 생성
 	if g.makeTask() == false {
 		return false
 	}
@@ -78,7 +73,7 @@ func (g *Generator) makePacketID() bool {
 		index++
 
 		genFilePath := path.Join(g.GenRootDir, fmt.Sprintf("gen_%s_ID.go", fileName))
-		if g.makeFile(genFilePath, source.String()) == false {
+		if g.makeGenFile(genFilePath, source.String()) == false {
 			return false
 		}
 
@@ -105,7 +100,7 @@ func (g *Generator) makePacketConstructor() bool {
 		}
 
 		genFilePath := path.Join(g.GenRootDir, fmt.Sprintf("gen_%s_Constructor.go", fileName))
-		if g.makeFile(genFilePath, source.String()) == false {
+		if g.makeGenFile(genFilePath, source.String()) == false {
 			return false
 		}
 
@@ -137,7 +132,7 @@ func (g *Generator) makeTask() bool {
 		}
 
 		genFilePath := path.Join(g.GenRootDir, fmt.Sprintf("gen_%s_Task.go", fileName))
-		if g.makeFile(genFilePath, source.String()) == false {
+		if g.makeGenFile(genFilePath, source.String()) == false {
 			return false
 		}
 
@@ -180,7 +175,7 @@ func (g *Generator) makeTask() bool {
 		}
 
 		genFilePath := path.Join(g.GenRootDir, fmt.Sprintf("gen_%s_TaskRegister.go", fileName))
-		if g.makeFile(genFilePath, source.String()) == false {
+		if g.makeGenFile(genFilePath, source.String()) == false {
 			return false
 		}
 
@@ -190,7 +185,7 @@ func (g *Generator) makeTask() bool {
 	return true
 }
 
-func (g *Generator) makeFile(filePath string, data string) bool {
+func (g *Generator) makeGenFile(filePath string, data string) bool {
 	dir := filepath.Dir(filePath)
 	os.MkdirAll(dir, os.ModePerm)
 
@@ -211,7 +206,7 @@ func (g *Generator) makeFile(filePath string, data string) bool {
 	return true
 }
 
-func (g *Generator) deleteFiles() bool {
+func (g *Generator) deleteGenFiles() bool {
 	files, err := os.ReadDir(g.GenRootDir)
 	if err != nil {
 		fmt.Printf("err: %v\n", err)

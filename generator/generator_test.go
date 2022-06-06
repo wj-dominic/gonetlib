@@ -6,5 +6,7 @@ import (
 
 func TestGenerator(t *testing.T) {
 	generator := NewGenerator()
-	generator.Generate("./Idl")
+	if generator.Generate("./Idl") == false {
+		t.Failed()
+	}
 }
