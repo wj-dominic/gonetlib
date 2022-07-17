@@ -2,8 +2,8 @@ package session
 
 import (
 	"fmt"
+	"gonetlib/generator/idl"
 	. "gonetlib/node"
-	"gonetlib/session/sample_test"
 	"gonetlib/util"
 	"net"
 	"reflect"
@@ -13,7 +13,9 @@ import (
 )
 
 func SendMessage(node *UserNode, message string) {
-	id, protocol := sample_test.NEW_PACKET_REQ_ECHO(message)
+	id, protocol := idl.NEW_PACKET_REQ_ECHO()
+
+	protocol.Message = message
 
 	header := NodeHeader{}
 	header.PacketID = id
@@ -49,17 +51,12 @@ func TestConnect(t *testing.T) {
 
 	wg.Wait()
 
-	for {
-		select {
-		case <-time.After(10 * time.Second):
-			return
-		}
-	}
+	time.Sleep(10 * time.Second)
 }
 
 func RegisterTask() {
-
-	sample_test.AddTaskRegister_REQ_ECHO()
+	idl.Add_PACKET_REQ_ECHO_TASK_REGISTER()
+	idl.Add_PACKET_RES_ECHO_TASK_REGISTER()
 }
 
 func communication() {

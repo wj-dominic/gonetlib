@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"gonetlib/netlogger"
+	"sync"
 )
 
 func NewTaskInvoker(invokerID uint8, bucket *chan ITask) *TaskInvoker {
@@ -13,21 +14,23 @@ func NewTaskInvoker(invokerID uint8, bucket *chan ITask) *TaskInvoker {
 }
 
 type TaskInvoker struct {
-	id     uint8
-	bucket *chan ITask
-
+	id       uint8
+	bucket   *chan ITask
+	wg       sync.WaitGroup
 	stopFunc context.CancelFunc
 }
 
 func (i *TaskInvoker) Run() bool {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	i.stopFunc = cancelFunc
+	i.wg.Add(1)
 	go i.proc(ctx)
 	return true
 }
 
 func (i *TaskInvoker) Stop() bool {
 	i.stopFunc()
+	i.wg.Wait()
 	return true
 }
 
