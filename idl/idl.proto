@@ -1,0 +1,11 @@
+syntax="proto3";
+
+option go_package="../idl";
+
+message REQ_ECHO {
+    string message = 1;
+}
+
+message RES_ECHO {
+    string message = 1;
+}
