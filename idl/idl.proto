@@ -2,10 +2,18 @@ syntax="proto3";
 
 option go_package="../idl";
 
-message REQ_ECHO {
-    string message = 1;
+enum ID{
+    NONE = 0;
+    REQ_ECHO = 1;
+    RES_ECHO = 2;
 }
 
-message RES_ECHO {
-    string message = 1;
+message ReqEcho {
+    string from = 2;
+    string message = 3;
+}
+
+message ResEcho {
+    string to = 1;
+    string message = 2;
 }
