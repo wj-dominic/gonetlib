@@ -3,7 +3,7 @@ package idl
 import (
 	"encoding/binary"
 	"fmt"
-	reflect "reflect"
+	"reflect"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -19,6 +19,13 @@ type ProtobufPacket struct {
 	Message proto.Message
 }
 
+func NewProtobufPacket(id uint32, message proto.Message) IPacket[proto.Message] {
+	return &ProtobufPacket{
+		ID:      id,
+		Message: message,
+	}
+}
+
 // GetID implements IPacket
 func (p *ProtobufPacket) GetID() uint32 {
 	return p.ID
@@ -29,40 +36,33 @@ func (p *ProtobufPacket) GetMessage() proto.Message {
 	return p.Message
 }
 
-func NewProtobufPacket(id uint32, message proto.Message) IPacket[proto.Message] {
-	return &ProtobufPacket{
-		ID:      id,
-		Message: message,
+type ProtobufPacketRegister struct {
+	registerMap map[uint32]func() proto.Message
+}
+
+func NewProtobufPacketRegister() *ProtobufPacketRegister {
+	return &ProtobufPacketRegister{
+		registerMap: make(map[uint32]func() proto.Message),
 	}
 }
 
-type IPacketFactory[T any] interface {
-	GetPacket(id uint32) T
-}
-
-type ProtobufPacketFactory struct {
-}
-
-// GetPacket implements IPacketFactory
-func (f *ProtobufPacketFactory) GetPacket(id uint32) proto.Message {
-	var msg proto.Message = nil
-
-	switch ID(id) {
-	case ID_REQ_ECHO:
-		msg = new(ReqEcho)
-		break
-	case ID_RES_ECHO:
-		msg = new(ResEcho)
-		break
-	default:
-		break
+func (r *ProtobufPacketRegister) Regist(id uint32, constructor func() proto.Message) error {
+	if _, exist := r.registerMap[id]; exist {
+		return fmt.Errorf("duplicate id | id[%d]", id)
 	}
 
-	return msg
+	r.registerMap[id] = constructor
+
+	return nil
 }
 
-func NewProtobufPacketFactory() IPacketFactory[proto.Message] {
-	return &ProtobufPacketFactory{}
+func (r *ProtobufPacketRegister) GetPacket(id uint32) (proto.Message, error) {
+	constructor, exist := r.registerMap[id]
+	if !exist {
+		return nil, fmt.Errorf("invalid id | id[%d]", id)
+	}
+
+	return constructor(), nil
 }
 
 type ISerializer[TInput any, TOutput any] interface {
@@ -71,12 +71,12 @@ type ISerializer[TInput any, TOutput any] interface {
 }
 
 type ProtobufSerializer struct {
-	packetFactory IPacketFactory[proto.Message]
+	packetRegister *ProtobufPacketRegister
 }
 
-func NewProtobufSerializer() ISerializer[IPacket[proto.Message], []byte] {
+func NewProtobufSerializer(register *ProtobufPacketRegister) ISerializer[IPacket[proto.Message], []byte] {
 	return &ProtobufSerializer{
-		packetFactory: NewProtobufPacketFactory(),
+		packetRegister: register,
 	}
 }
 
@@ -101,12 +101,12 @@ func (s *ProtobufSerializer) Deserialize(data []byte) (IPacket[proto.Message], e
 
 	id := binary.LittleEndian.Uint32(data[0:sizeOfId])
 
-	msg := s.packetFactory.GetPacket(id)
-	if msg == nil {
+	msg, err := s.packetRegister.GetPacket(id)
+	if err != nil {
 		return nil, fmt.Errorf("invalid packet id | id[%d]", id)
 	}
 
-	err := proto.Unmarshal(data[sizeOfId:], msg)
+	err = proto.Unmarshal(data[sizeOfId:], msg)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +116,15 @@ func (s *ProtobufSerializer) Deserialize(data []byte) (IPacket[proto.Message], e
 	return packet, nil
 }
 
+func NewReqEcho() proto.Message { return &ReqEcho{} }
+func NewResEcho() proto.Message { return &ResEcho{} }
+
 func TestIDL(t *testing.T) {
-	serializer := NewProtobufSerializer()
+	register := NewProtobufPacketRegister()
+	register.Regist(uint32(ID_REQ_ECHO), NewReqEcho)
+	register.Regist(uint32(ID_RES_ECHO), NewResEcho)
+
+	serializer := NewProtobufSerializer(register)
 
 	reqEcho := &ReqEcho{From: "1", Message: "test"}
 	fmt.Printf("reqEcho: %v\n", reqEcho)
@@ -140,7 +147,7 @@ func TestIDL(t *testing.T) {
 		return
 	}
 
-	echo := msg.GetMessage().ProtoReflect().Interface().(*ReqEcho)
+	echo := msg.GetMessage().(*ReqEcho)
 
 	fmt.Printf("outReqEcho: %s\n", echo.GetFrom())
 }
