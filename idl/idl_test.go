@@ -14,25 +14,23 @@ type IPacket[T any] interface {
 	GetMessage() T
 }
 
-type ProtobufPacket struct {
+type Packet[T any] struct {
 	ID      uint32
-	Message proto.Message
+	Message T
 }
 
-func NewProtobufPacket(id uint32, message proto.Message) IPacket[proto.Message] {
-	return &ProtobufPacket{
+func NewPacket[T any](id uint32, msg T) *Packet[T] {
+	return &Packet[T]{
 		ID:      id,
-		Message: message,
+		Message: msg,
 	}
 }
 
-// GetID implements IPacket
-func (p *ProtobufPacket) GetID() uint32 {
+func (p *Packet[T]) GetID() uint32 {
 	return p.ID
 }
 
-// GetMessage implements IPacket
-func (p *ProtobufPacket) GetMessage() proto.Message {
+func (p *Packet[T]) GetMessage() T {
 	return p.Message
 }
 
@@ -68,6 +66,38 @@ func (r *ProtobufPacketRegister) GetPacket(id uint32) (proto.Message, error) {
 type ISerializer[TInput any, TOutput any] interface {
 	Serialize(data TInput) (TOutput, error)
 	Deserialize(data TOutput) (TInput, error)
+}
+
+type Serializer[T any] struct {
+}
+
+func NewSerializer[T any]() *Serializer[T] {
+	return &Serializer[T]{}
+}
+
+func (s *Serializer[T]) Serialize(data T, out_buf []byte) error {
+	return nil
+}
+
+func (s *Serializer[T]) Deserialize(in_buf []byte) (T, error) {
+	sizeOfId := int(reflect.TypeOf((*uint32)(nil)).Elem().Size())
+
+	id := binary.LittleEndian.Uint32(in_buf[0:sizeOfId])
+
+	msg, err := s.packetRegister.GetPacket(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid packet id | id[%d]", id)
+	}
+
+	err = proto.Unmarshal(data[sizeOfId:], msg)
+	if err != nil {
+		return nil, err
+	}
+
+	packet := NewPacket(id, msg)
+
+	return packet, nil
+
 }
 
 type ProtobufSerializer struct {
@@ -111,7 +141,7 @@ func (s *ProtobufSerializer) Deserialize(data []byte) (IPacket[proto.Message], e
 		return nil, err
 	}
 
-	packet := NewProtobufPacket(id, msg)
+	packet := NewPacket(id, msg)
 
 	return packet, nil
 }
@@ -126,10 +156,10 @@ func TestIDL(t *testing.T) {
 
 	serializer := NewProtobufSerializer(register)
 
-	reqEcho := &ReqEcho{From: "1", Message: "test"}
+	reqEcho := &ReqEcho{Id: ID_REQ_ECHO, From: "1", Message: "test"}
 	fmt.Printf("reqEcho: %v\n", reqEcho)
 
-	packet := NewProtobufPacket(uint32(ID_REQ_ECHO), reqEcho)
+	packet := NewPacket(uint32(ID_REQ_ECHO), reqEcho)
 
 	//시리얼라이즈 proto to bytes
 	out, err := serializer.Serialize(packet)

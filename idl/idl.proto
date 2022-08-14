@@ -9,11 +9,13 @@ enum ID{
 }
 
 message ReqEcho {
+    ID     id = 1;
     string from = 2;
     string message = 3;
 }
 
 message ResEcho {
-    string to = 1;
-    string message = 2;
+    ID     id = 1;
+    string to = 2;
+    string message = 3;
 }
