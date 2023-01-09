@@ -6,8 +6,9 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
-	"path/filepath"
-	"strings"
+	"gonetlib/util"
+	"log"
+	"os"
 )
 
 type Field struct {
@@ -15,26 +16,29 @@ type Field struct {
 	Type string
 }
 
+type IDLStruct struct {
+	Name   string
+	Fields []*Field
+}
+
+type IDLFile struct {
+	Name       string
+	PakageName string
+	IDLs       []*IDLStruct
+}
+
 type IDLParser struct {
-	IdlMap    map[string]map[string][]Field
-	IdlPkgMap map[string]string
-	IsParsed  bool
+	cache map[string]*IDLFile
 }
 
 func NewIDLParser() *IDLParser {
 	return &IDLParser{
-		IdlMap:    make(map[string]map[string][]Field),
-		IdlPkgMap: make(map[string]string),
-		IsParsed:  false,
+		cache: make(map[string]*IDLFile),
 	}
 }
 
-func (p *IDLParser) Parse(path string) bool {
-	p.IsParsed = false
-
-	p.clearMap()
-
-	if len(path) <= 0 {
+func (p *IDLParser) Parse(srcPath string) bool {
+	if p.isValid(srcPath) == false {
 		return false
 	}
 
@@ -44,66 +48,90 @@ func (p *IDLParser) Parse(path string) bool {
 		return false
 	}
 
-	pkgs, err := parser.ParseDir(fset, path, nil, parser.ParseComments)
+	pkgs, err := parser.ParseDir(fset, srcPath, nil, parser.ParseComments)
 	if err != nil {
-		fmt.Printf("Failed to parse dir | path[%s] err[%s]\n", path, err)
+		fmt.Printf("Failed to parse dir | path[%s] err[%s]\n", srcPath, err)
 		return false
 	}
 
+	p.reset()
+
 	for pkgName, pkg := range pkgs {
-		for fileName, file := range pkg.Files {
-			fileName = filepath.Base(fileName)
-			fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
-
-			for _, node := range file.Decls {
-				switch node.(type) {
-				case *ast.GenDecl:
-					genDecl := node.(*ast.GenDecl)
-					for _, spec := range genDecl.Specs {
-						switch spec.(type) {
-						case *ast.TypeSpec:
-							typeSpec := spec.(*ast.TypeSpec)
-							switch typeSpec.Type.(type) {
-							case *ast.StructType:
-								if _, exist := p.IdlMap[fileName]; exist == false {
-									p.IdlMap[fileName] = make(map[string][]Field)
-								}
-
-								structType := typeSpec.Type.(*ast.StructType)
-								if _, exist := p.IdlMap[fileName][typeSpec.Name.Name]; exist == true {
-									continue
-								}
-
-								p.IdlMap[fileName][typeSpec.Name.Name] = make([]Field, len(structType.Fields.List))
-								p.IdlPkgMap[fileName] = pkgName
-
-								for index, field := range structType.Fields.List {
-									fieldType := field.Type
-									typeString := types.ExprString(fieldType)
-									for _, fieldName := range field.Names {
-										tmpField := Field{Name: fieldName.Name, Type: typeString}
-										p.IdlMap[fileName][typeSpec.Name.Name][index] = tmpField
-									}
-								}
-							}
-						}
-					}
-				}
+		for filePath, file := range pkg.Files {
+			idlFile := p.parse(file)
+			if idlFile == nil {
+				log.Fatalf("Failed to parse to idl file [path:%s]\n", filePath)
+				continue
 			}
+
+			idlFile.Name = util.GetFileNameWithoutExt(filePath)
+			idlFile.PakageName = pkgName
+
+			p.cache[idlFile.Name] = idlFile
 		}
 	}
-
-	p.IsParsed = true
 
 	return true
 }
 
-func (p *IDLParser) clearMap() {
-	for k := range p.IdlMap {
-		for j := range p.IdlMap[k] {
-			delete(p.IdlMap[k], j)
+func (p *IDLParser) Get() map[string]*IDLFile {
+	return p.cache
+}
+
+func (p *IDLParser) parse(file *ast.File) *IDLFile {
+	var idlFile IDLFile
+	idlFile.IDLs = make([]*IDLStruct, 0)
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if ok == false {
+			continue
 		}
 
-		delete(p.IdlMap, k)
+		for _, spec := range genDecl.Specs {
+			typespec, ok := spec.(*ast.TypeSpec)
+			if ok == false {
+				continue
+			}
+
+			structType, ok := typespec.Type.(*ast.StructType)
+			if ok == false {
+				continue
+			}
+
+			var idlStruct IDLStruct
+			idlStruct.Name = typespec.Name.Name
+			idlStruct.Fields = make([]*Field, 0)
+
+			for _, field := range structType.Fields.List {
+				fieldType := field.Type
+				typeString := types.ExprString(fieldType)
+
+				for _, fieldIndent := range field.Names {
+					tmpField := Field{Name: fieldIndent.Name, Type: typeString}
+					idlStruct.Fields = append(idlStruct.Fields, &tmpField)
+				}
+			}
+
+			idlFile.IDLs = append(idlFile.IDLs, &idlStruct)
+		}
 	}
+
+	return &idlFile
+}
+
+func (p *IDLParser) reset() {
+	for k := range p.cache {
+		delete(p.cache, k)
+	}
+}
+
+func (p *IDLParser) isValid(filePath string) bool {
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		log.Fatalf("Path is not exist | path[%s]", filePath)
+		return false
+	}
+
+	return true
 }

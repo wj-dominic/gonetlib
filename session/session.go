@@ -14,7 +14,6 @@ import (
 	util "gonetlib/util"
 	"io"
 	"net"
-	"reflect"
 	"sync"
 	"time"
 	"unsafe"
@@ -25,7 +24,7 @@ const (
 )
 
 type keyChain struct {
-	XOR uint8
+	XOR uint32
 	RSA rsa.PublicKey
 }
 
@@ -50,6 +49,9 @@ type Session struct {
 	wg        sync.WaitGroup
 
 	IsActive bool
+
+	decoder IMessageDecoder
+	encoder IMessageEncoder
 }
 
 func NewSession() *Session {
@@ -69,6 +71,9 @@ func NewSession() *Session {
 		wg:        sync.WaitGroup{},
 
 		IsActive: false,
+
+		decoder: NewXORDecoder(),
+		encoder: NewXOREncoder(),
 	}
 }
 
@@ -112,12 +117,7 @@ func (session *Session) Reset() {
 
 	session.recvBuffer.Clear()
 	for len(session.sendChannel) > 0 {
-		select {
-		case <-session.sendChannel:
-			break
-		default:
-			break
-		}
+		<-session.sendChannel
 	}
 
 	session.sendOnce.Reset()
@@ -130,6 +130,9 @@ func (session *Session) SendPost(packet *Message) bool {
 		GetLogger().Error("Failed to send | packet is nullptr")
 		return false
 	}
+
+	packet.Encoder(session.encoder)
+	packet.Encode(session.keys.XOR)
 
 	session.sendChannel <- packet
 
@@ -146,7 +149,7 @@ func (session *Session) GetNode() INode {
 	return session.node
 }
 
-//Accept 스레드에서 접근하는 함수
+// Accept 스레드에서 접근하는 함수
 func (session *Session) connectHandler() {
 	if session.acquire() == false { //ref = 2
 		return
@@ -166,7 +169,7 @@ func (session *Session) connectHandler() {
 	} //ref = 3
 }
 
-//수신 스레드
+// 수신 스레드
 func (session *Session) asyncRead() {
 	fmt.Printf("begin async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 	session.wg.Add(1)
@@ -203,99 +206,71 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	}
 
 	if session.recvBuffer.MoveRear(recvSize) == false {
-		//GetLogger().Error("failed to receive | recvSize[%d]", recvSize)
+		GetLogger().Error("failed to receive | recvSize[%d]", recvSize)
 		fmt.Printf("failed to receive | recvSize[%d]\n", recvSize)
 		return false
 	}
 
-	netHeader := NetHeader{}
-	headerSize := util.Sizeof(reflect.ValueOf(netHeader))
-	if headerSize == -1 {
-		GetLogger().Error("header size was wrong...")
-		fmt.Printf("header size was wrong...")
-		return false
-	}
+	packet := NewMessage().LittleEndian().Encoder(session.encoder).Decoder(session.decoder)
 
 	for {
-		netHeader := NetHeader{}
-
-		if session.recvBuffer.GetUseSize() <= uint32(headerSize) {
+		if uint16(session.recvBuffer.GetUseSize()) <= packet.GetHeaderSize() {
 			break
 		}
 
-		session.recvBuffer.Peek(&netHeader, uint32(headerSize))
+		session.recvBuffer.Peek(packet.GetHeaderBuffer(), uint32(packet.GetHeaderSize()))
 
-		packetSize := uint32(headerSize) + uint32(netHeader.PayloadLength)
-		if session.recvBuffer.GetUseSize() < packetSize {
+		expectedPacketSize := packet.GetHeaderSize() + packet.GetExpectedPayloadSize()
+		if uint16(session.recvBuffer.GetUseSize()) < expectedPacketSize {
 			break
 		}
 
-		session.recvBuffer.MoveFront(uint32(headerSize))
+		session.recvBuffer.MoveFront(uint32(packet.GetHeaderSize()))
 
-		packet := NewMessage(true)
-
-		packet.PushHeader(&netHeader)
-		session.recvBuffer.Read(packet.GetPayloadBuffer(), uint32(netHeader.PayloadLength))
-		packet.MoveRear(uint32(netHeader.PayloadLength))
+		session.recvBuffer.Read(packet.GetPayloadBuffer(), uint32(packet.GetExpectedPayloadSize()))
+		packet.MoveRear(packet.GetExpectedPayloadSize())
 
 		if session.onRecv(packet) == false {
 			fmt.Printf("on recv is false")
 			return false
 		}
+
+		packet.Reset()
 	}
 
 	return true
 }
 
-//패킷 수신 이벤트 함수 : 수신 스레드에서만 접근
+// 패킷 수신 이벤트 함수 : 수신 스레드에서만 접근
 func (session *Session) onRecv(packet *Message) bool {
 	if packet == nil {
 		fmt.Printf("packet is nil")
 		return false
 	}
 
-	if packet.IsValid() == false {
-		return false
-	}
+	switch packet.GetType() {
+	case Default:
+		packet.Decode(session.keys.XOR)
 
-	//패킷 복호화
-	cryptoType := packet.GetCryptoType()
-	switch cryptoType {
-	case NONE:
-		break
-	case XOR:
-		packet.DecodeXOR(session.keys.XOR)
-		break
-	case RSA:
-		//packet.DecodeRSA() //TODO: 서버 개인 키 필요
-		break
-	default:
-		GetLogger().Error("invalid crypto type of packet | cryptoType[%d]", cryptoType)
-		return false
-	}
-
-	//패킷 핸들링
-	packetType := packet.GetType()
-	switch packetType {
-	case SYN:
-		packet.Pop(&session.keys.RSA)
-		break
-	case SYN_ACK:
-		packet.Pop(&session.keys.XOR)
-		break
-	case ESTABLISHED:
 		if session.node == nil {
-			GetLogger().Error("Recv error | node is null")
+			fmt.Printf("Session node is null")
 			return false
 		}
 
 		if session.node.OnRecv(packet) == false {
-			fmt.Printf("node on recv is false")
+			fmt.Printf("Failed to recv on a session node")
 			return false
 		}
 
+		break
+	case SetKey:
+		if session.setkey(packet) == false {
+			fmt.Printf("Failed to setup key")
+			return false
+		}
+		break
 	default:
-		GetLogger().Error("invalid packet type of packet | packetType[%d]", packetType)
+		fmt.Printf("Invalid packet type")
 		return false
 	}
 
@@ -323,12 +298,8 @@ func (session *Session) asyncWrite() {
 
 	sendBuffer := bytes.Buffer{}
 	for len(session.sendChannel) > 0 {
-		select {
-		case msg := <-session.sendChannel:
-			sendBuffer.Write(msg.GetBuffer())
-			break
-		}
-
+		msg := <-session.sendChannel
+		sendBuffer.Write(msg.GetBuffer())
 		time.Sleep(1 * time.Millisecond)
 	}
 
@@ -347,7 +318,7 @@ func (session *Session) asyncWrite() {
 	session.node.OnSend(sendBytes)
 }
 
-//세션 종료 함수 : 여러 스레드(accept, recv, send) 접근 가능 (스레드 세이프하게 만들어야 함)
+// 세션 종료 함수 : 여러 스레드(accept, recv, send) 접근 가능 (스레드 세이프하게 만들어야 함)
 func (session *Session) disconnectHandler() {
 	if session.canDisconnect() == false {
 		return
@@ -417,4 +388,14 @@ func (session *Session) closesocket() {
 		session.socket.Close()
 		close(session.sendChannel)
 	})
+}
+
+func (session *Session) setkey(packet *Message) bool {
+	if packet == nil {
+		return false
+	}
+
+	packet.Pop(session.keys.XOR)
+
+	return true
 }

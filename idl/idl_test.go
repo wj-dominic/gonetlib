@@ -3,59 +3,38 @@ package idl
 import (
 	"encoding/binary"
 	"fmt"
-	"reflect"
+	reflect "reflect"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
 )
 
-type IPacket[T any] interface {
+type IPacket interface {
 	GetID() uint32
-	GetMessage() T
+	GetMessage() interface{}
 }
 
-type Packet[T any] struct {
-	ID      uint32
-	Message T
+type PacketCreator struct {
+	concreteMap map[uint32]func() IPacket
 }
 
-func NewPacket[T any](id uint32, msg T) *Packet[T] {
-	return &Packet[T]{
-		ID:      id,
-		Message: msg,
+func NewPacketCreator() *PacketCreator {
+	return &PacketCreator{
+		concreteMap: make(map[uint32]func() IPacket),
 	}
 }
 
-func (p *Packet[T]) GetID() uint32 {
-	return p.ID
-}
-
-func (p *Packet[T]) GetMessage() T {
-	return p.Message
-}
-
-type ProtobufPacketRegister struct {
-	registerMap map[uint32]func() proto.Message
-}
-
-func NewProtobufPacketRegister() *ProtobufPacketRegister {
-	return &ProtobufPacketRegister{
-		registerMap: make(map[uint32]func() proto.Message),
-	}
-}
-
-func (r *ProtobufPacketRegister) Regist(id uint32, constructor func() proto.Message) error {
-	if _, exist := r.registerMap[id]; exist {
+func (c *PacketCreator) Add(id uint32, constructor func() IPacket) error {
+	if _, exist := c.concreteMap[id]; exist {
 		return fmt.Errorf("duplicate id | id[%d]", id)
 	}
 
-	r.registerMap[id] = constructor
-
+	c.concreteMap[id] = constructor
 	return nil
 }
 
-func (r *ProtobufPacketRegister) GetPacket(id uint32) (proto.Message, error) {
-	constructor, exist := r.registerMap[id]
+func (c *PacketCreator) Create(id uint32) (IPacket, error) {
+	constructor, exist := c.concreteMap[id]
 	if !exist {
 		return nil, fmt.Errorf("invalid id | id[%d]", id)
 	}
@@ -63,60 +42,28 @@ func (r *ProtobufPacketRegister) GetPacket(id uint32) (proto.Message, error) {
 	return constructor(), nil
 }
 
-type ISerializer[TInput any, TOutput any] interface {
-	Serialize(data TInput) (TOutput, error)
-	Deserialize(data TOutput) (TInput, error)
-}
-
-type Serializer[T any] struct {
-}
-
-func NewSerializer[T any]() *Serializer[T] {
-	return &Serializer[T]{}
-}
-
-func (s *Serializer[T]) Serialize(data T, out_buf []byte) error {
-	return nil
-}
-
-func (s *Serializer[T]) Deserialize(in_buf []byte) (T, error) {
-	sizeOfId := int(reflect.TypeOf((*uint32)(nil)).Elem().Size())
-
-	id := binary.LittleEndian.Uint32(in_buf[0:sizeOfId])
-
-	msg, err := s.packetRegister.GetPacket(id)
-	if err != nil {
-		return nil, fmt.Errorf("invalid packet id | id[%d]", id)
-	}
-
-	err = proto.Unmarshal(data[sizeOfId:], msg)
-	if err != nil {
-		return nil, err
-	}
-
-	packet := NewPacket(id, msg)
-
-	return packet, nil
-
+type ISerializer interface {
+	Serialize(packet IPacket) ([]byte, error)
+	Deserialize(buf []byte) (IPacket, error)
 }
 
 type ProtobufSerializer struct {
-	packetRegister *ProtobufPacketRegister
+	packetCreator *PacketCreator
 }
 
-func NewProtobufSerializer(register *ProtobufPacketRegister) ISerializer[IPacket[proto.Message], []byte] {
+func NewProtobufSerializer(c *PacketCreator) ISerializer {
 	return &ProtobufSerializer{
-		packetRegister: register,
+		packetCreator: c,
 	}
 }
 
-func (s *ProtobufSerializer) Serialize(data IPacket[proto.Message]) ([]byte, error) {
-	out, err := proto.Marshal(data.GetMessage())
+func (ps *ProtobufSerializer) Serialize(packet IPacket) ([]byte, error) {
+	out, err := proto.Marshal(packet.GetMessage().(proto.Message))
 	if err != nil {
 		return nil, err
 	}
 
-	id := data.GetID()
+	id := packet.GetID()
 	sizeOfId := int(reflect.TypeOf(id).Size())
 
 	buffer := make([]byte, len(out)+sizeOfId)
@@ -126,40 +73,52 @@ func (s *ProtobufSerializer) Serialize(data IPacket[proto.Message]) ([]byte, err
 	return buffer, nil
 }
 
-func (s *ProtobufSerializer) Deserialize(data []byte) (IPacket[proto.Message], error) {
+func (ps *ProtobufSerializer) Deserialize(buf []byte) (IPacket, error) {
 	sizeOfId := int(reflect.TypeOf((*uint32)(nil)).Elem().Size())
+	id := binary.LittleEndian.Uint32(buf[0:sizeOfId])
 
-	id := binary.LittleEndian.Uint32(data[0:sizeOfId])
-
-	msg, err := s.packetRegister.GetPacket(id)
+	packet, err := ps.packetCreator.Create(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid packet id | id[%d]", id)
 	}
 
-	err = proto.Unmarshal(data[sizeOfId:], msg)
+	err = proto.Unmarshal(buf[sizeOfId:], packet.GetMessage().(proto.Message))
 	if err != nil {
 		return nil, err
 	}
 
-	packet := NewPacket(id, msg)
-
 	return packet, nil
 }
 
-func NewReqEcho() proto.Message { return &ReqEcho{} }
-func NewResEcho() proto.Message { return &ResEcho{} }
+type Packet[TMessage any] struct {
+	id  uint32
+	msg TMessage
+}
+
+func NewPacket[TMessage any](id uint32) *Packet[TMessage] {
+	return &Packet[TMessage]{
+		id: id,
+	}
+}
+
+func (p *Packet[TMessage]) GetID() uint32           { return p.id }
+func (p *Packet[TMessage]) GetMessage() interface{} { return &p.msg }
+func (p *Packet[TMessage]) Message() *TMessage      { return p.GetMessage().(*TMessage) }
 
 func TestIDL(t *testing.T) {
-	register := NewProtobufPacketRegister()
-	register.Regist(uint32(ID_REQ_ECHO), NewReqEcho)
-	register.Regist(uint32(ID_RES_ECHO), NewResEcho)
+	creator := NewPacketCreator()
 
-	serializer := NewProtobufSerializer(register)
+	creator.Add(uint32(ID_REQ_ECHO), func() IPacket { return NewPacket[ReqEcho](uint32(ID_REQ_ECHO)) })
+	creator.Add(uint32(ID_RES_ECHO), func() IPacket { return NewPacket[ResEcho](uint32(ID_RES_ECHO)) })
 
-	reqEcho := &ReqEcho{Id: ID_REQ_ECHO, From: "1", Message: "test"}
-	fmt.Printf("reqEcho: %v\n", reqEcho)
+	serializer := NewProtobufSerializer(creator)
 
-	packet := NewPacket(uint32(ID_REQ_ECHO), reqEcho)
+	packet := NewPacket[ReqEcho](uint32(ID_REQ_ECHO))
+	packet.Message().From = "john"
+	packet.Message().Id = ID_REQ_ECHO
+	packet.Message().Message = "test"
+
+	fmt.Printf("reqEcho: %v\n", packet.Message())
 
 	//시리얼라이즈 proto to bytes
 	out, err := serializer.Serialize(packet)
@@ -177,7 +136,5 @@ func TestIDL(t *testing.T) {
 		return
 	}
 
-	echo := msg.GetMessage().(*ReqEcho)
-
-	fmt.Printf("outReqEcho: %s\n", echo.GetFrom())
+	fmt.Printf("outReqEcho: %v\n", msg.GetMessage())
 }

@@ -20,3 +20,5 @@
 # gen folder
 gen/
 gen_*
+
+.DS_Store

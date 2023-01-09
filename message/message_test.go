@@ -13,29 +13,35 @@ import (
 5. 메시지 전송
 */
 
-func TestMessage_Push(t *testing.T){
-	msg := NewMessage(true)
-	
-	netHeader := NetHeader{
-		PacketType:    1,
-		CryptoType:    2,
-		RandKey:       3,
-		PayloadLength: 4,
-		CheckSum:      5,
+type Test struct {
+	Id       int
+	Name     string
+	Age      uint32
+	National string
+}
+
+func TestMessage_Push(t *testing.T) {
+	msg := NewMessage().LittleEndian().Encoder(NewXOREncoder()).Decoder(NewXORDecoder())
+
+	person := Test{
+		Id:       1,
+		Name:     "John",
+		Age:      30,
+		National: "Seoul",
 	}
 
-	msg.Push(netHeader)
+	msg.Push(person)
 	msg.Push("testslfjlskdjfklsdfhl")
 	msg.Push(10)
 	msg.Push(uint(19))
 	msg.Push(int8(100))
 	msg.Push(byte(90))
 	msg.Push(true)
-	msg.Push([]byte{1,2,3,4,5})
+	msg.Push([]byte{1, 2, 3, 4, 5})
 
-	fmt.Println("after push buffer : ", msg.GetPayloadBuffer(), msg.GetPayloadLength())
+	fmt.Println("after push buffer : ", msg.GetPayloadBuffer(), msg.GetPayloadSize())
 
-	var peekNetHeader NetHeader
+	var peekStructure Test
 	var peekString string
 	var peekInt int
 	var peekUint uint
@@ -44,7 +50,7 @@ func TestMessage_Push(t *testing.T){
 	var peekBool bool
 	var peekBytes []byte
 
-	msg.Pop(&peekNetHeader)
+	msg.Pop(&peekStructure)
 	msg.Pop(&peekString)
 	msg.Pop(&peekInt)
 	msg.Pop(&peekUint)
@@ -53,7 +59,7 @@ func TestMessage_Push(t *testing.T){
 	msg.Pop(&peekBool)
 	msg.Pop(&peekBytes)
 
-	fmt.Println(peekNetHeader)
+	fmt.Println(peekStructure)
 	fmt.Println(peekString)
 	fmt.Println(peekInt)
 	fmt.Println(peekUint)
@@ -62,7 +68,7 @@ func TestMessage_Push(t *testing.T){
 	fmt.Println(peekBool)
 	fmt.Println(peekBytes)
 
-	fmt.Println("after pop buffer : ", msg.GetPayloadBuffer(), msg.GetPayloadLength())
+	fmt.Println("after pop buffer : ", msg.GetPayloadBuffer(), msg.GetPayloadSize())
 }
 
 /*

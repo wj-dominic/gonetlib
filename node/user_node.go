@@ -50,17 +50,17 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 	headerSize := uint16(Sizeof(reflect.ValueOf(header)))
 	payloadSize := headerSize + header.Length
 
-	if uint16(packet.GetPayloadLength()) < payloadSize {
-		fmt.Printf("invalid payload Length | packet[%d] header[%d]", packet.GetPayloadLength(), payloadSize)
+	if uint16(packet.GetPayloadSize()) < payloadSize {
+		fmt.Printf("invalid payload Length | packet[%d] header[%d]", packet.GetPayloadSize(), payloadSize)
 		return false
 	}
 
 	//헤더 길이만큼 뽑는다.
-	packet.MoveFront(uint32(headerSize))
+	packet.MoveFront(headerSize)
 
 	//헤더에 있는 길이와 패킷에 남아있는 데이터의 길이가 일치해야 한다.
-	if uint16(packet.GetPayloadLength()) != header.Length {
-		fmt.Printf("packet Length differ data and header | pop[%d] header[%d]", packet.GetPayloadLength(), header.Length)
+	if uint16(packet.GetPayloadSize()) != header.Length {
+		fmt.Printf("packet Length differ data and header | pop[%d] header[%d]", packet.GetPayloadSize(), header.Length)
 		return false
 	}
 
@@ -80,12 +80,12 @@ func (node *UserNode) OnRecv(packet *Message) bool {
 }
 
 func (node *UserNode) Send(header NodeHeader, value interface{}) bool {
-	packet := NewMessage(true)
+	packet := NewMessage()
 
 	packet.Push(header)
 	packet.Push(value)
 
-	packet.SetHeader(ESTABLISHED, NONE)
+	packet.MakeHeader()
 
 	return node.session.SendPost(packet)
 }

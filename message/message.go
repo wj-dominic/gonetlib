@@ -1,109 +1,131 @@
 package message
 
 import (
-	cryptoRand "crypto/rand"
-	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
-	. "gonetlib/netlogger"
+	"gonetlib/netlogger"
 	"gonetlib/util"
 	"log"
-	mathRand "math/rand"
+	"math/rand"
 	"reflect"
 )
 
-type PacketType uint8
-
-const (
-	SYN         PacketType = 1 + iota //공개키 주고 받음, 암호화 없음
-	SYN_ACK                           //패킷 코드, 키 주고 받음 (XOR 용), 이 패킷은 RSA 암호화가 기본
-	ESTABLISHED                       //이 패킷은 연결된 후 패킷, 여기서부터는 서로 공개키와 패킷 코드, 키를 알고 있으므로 인코딩은 선택하면됨
-)
-
-type CryptoType uint8
-
-const (
-	NONE CryptoType = 0 + iota //암호화 없음
-	XOR                        //빠른 암호화
-	RSA                        //느린 암호화
-)
-
-type NetHeader struct {
-	PacketType    PacketType
-	CryptoType    CryptoType
-	RandKey       uint8
-	PayloadLength uint16
-	CheckSum      uint8
+type IMessageEncoder interface {
+	Encode(key interface{}, buf []byte) bool
 }
 
-const (
-	headerSize  uint32 = 6
-	payloadSize uint32 = 300
-	bufferSize  uint32 = headerSize + payloadSize
-)
+type IMessageDecoder interface {
+	Decode(key interface{}, buf []byte) bool
+}
 
 type Message struct {
 	buffer []byte
 
-	front uint32
-	rear  uint32
+	front uint16
+	rear  uint16
 
 	order binary.ByteOrder
+
+	encoder IMessageEncoder
+	decoder IMessageDecoder
 }
 
-func NewMessage(isLittleEndian bool) *Message {
-	var msg = Message{
-		buffer: make([]byte, bufferSize),
+const (
+	HeaderSize  uint16 = 5
+	PayloadSize uint16 = 1020
+	BufferSize  uint16 = HeaderSize + PayloadSize
+)
 
-		front: headerSize,
-		rear:  headerSize,
+// packet type
+const (
+	_ uint8 = iota
+	Default
+	SetKey
+)
+
+func NewMessage() *Message {
+	return &Message{
+		buffer: make([]byte, BufferSize),
+
+		front: HeaderSize,
+		rear:  HeaderSize,
 
 		order: binary.LittleEndian,
-	}
-	if isLittleEndian == false {
-		msg.order = binary.BigEndian
-	}
 
-	return &msg
+		encoder: nil,
+		decoder: nil,
+	}
+}
+
+func (msg *Message) LittleEndian() *Message {
+	msg.order = binary.LittleEndian
+	return msg
+}
+
+func (msg *Message) BigEndian() *Message {
+	msg.order = binary.BigEndian
+	return msg
+}
+
+func (msg *Message) Encoder(encoder IMessageEncoder) *Message {
+	msg.encoder = encoder
+	return msg
+}
+
+func (msg *Message) Decoder(decoder IMessageDecoder) *Message {
+	msg.decoder = decoder
+	return msg
 }
 
 func (msg *Message) GetBuffer() []byte {
-	return msg.buffer[:msg.rear]
+	return msg.buffer[:msg.GetSize()]
+}
+
+func (msg *Message) GetSize() uint16 {
+	return msg.rear
 }
 
 func (msg *Message) GetHeaderBuffer() []byte {
-	return msg.buffer[:headerSize]
+	return msg.buffer[:msg.GetHeaderSize()]
+}
+
+func (msg *Message) GetHeaderSize() uint16 {
+	return msg.front
 }
 
 func (msg *Message) GetPayloadBuffer() []byte {
-	return msg.buffer[msg.front:]
+	return msg.buffer[msg.GetHeaderSize():]
 }
 
-func (msg *Message) GetPayloadLength() uint32 {
-	return msg.rear - msg.front
+func (msg *Message) GetPayloadSize() uint16 {
+	return msg.GetSize() - msg.GetHeaderSize()
 }
 
-func (msg *Message) GetLength() uint32 {
-	return headerSize + msg.GetPayloadLength()
+func (msg *Message) setHeader(Type uint8) {
+	msg.buffer[0] = Type
+	msg.order.PutUint16(msg.buffer[1:3], uint16(msg.GetPayloadSize()))
+	msg.buffer[3] = uint8(rand.Intn(256))
+	msg.buffer[4] = msg.generateChecksum()
 }
 
-func (msg *Message) SetHeader(packetType PacketType, cryptoType CryptoType) {
-	var header NetHeader
-	header.PacketType = packetType
-	header.CryptoType = cryptoType
-	header.RandKey = uint8(mathRand.Intn(256))
-	header.PayloadLength = uint16(msg.GetPayloadLength())
-	header.CheckSum = msg.generateChecksum()
-
-	msg.packHeader(header) //pragma pack(1)
+func (msg *Message) MakeHeader() {
+	msg.setHeader(Default)
 }
 
-func (msg *Message) PushHeader(header *NetHeader) {
-	msg.packHeader(*header)
+func (msg *Message) GetType() uint8 {
+	return msg.buffer[0]
 }
 
-func (msg *Message) Push(value interface{}) uint32 {
-	pushSize := uint32(util.Sizeof(reflect.ValueOf(value)))
+func (msg *Message) GetExpectedPayloadSize() uint16 {
+	return msg.order.Uint16(msg.buffer[1:3])
+}
+
+func (msg *Message) GetChecksum() uint8 {
+	return msg.buffer[4]
+}
+
+func (msg *Message) Push(value interface{}) uint16 {
+	pushSize := uint16(util.Sizeof(reflect.ValueOf(value)))
 
 	if msg.getFreeLength() < pushSize {
 		fmt.Println(value, pushSize)
@@ -167,12 +189,12 @@ func (msg *Message) Push(value interface{}) uint32 {
 		length := uint16(len(value.(string)))
 		msg.Push(length)
 		copy(msg.buffer[msg.rear:], value.(string))
-		pushSize = uint32(length)
+		pushSize = length
 		break
 	case reflect.Struct:
 		target := reflect.ValueOf(value)
 		for i, n := 0, target.NumField(); i < n; i++ {
-			msg.Push(target.Field(i).Interface()) //TODO :: It panics if the Value was obtained by accessing unexported struct fields. 문제 해결
+			msg.Push(target.Field(i).Interface())
 		}
 		pushSize = 0 //이미 위에서 넣기 때문에 pushsize는 0으로 변경
 		break
@@ -190,8 +212,8 @@ func (msg *Message) Push(value interface{}) uint32 {
 	return pushSize
 }
 
-func (msg *Message) Peek(outValue interface{}) uint32 {
-	peekSize := uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
+func (msg *Message) Peek(outValue interface{}) uint16 {
+	peekSize := uint16(util.Sizeof(reflect.ValueOf(outValue).Elem()))
 
 	switch reflect.TypeOf(outValue).Kind() {
 	case reflect.Ptr:
@@ -204,7 +226,7 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 			} else if tempValue == 0 {
 				*pOutValue = false
 			} else {
-				GetLogger().Error("peeked value is not boolean : " + string(tempValue))
+				netlogger.GetLogger().Error("peeked value is not boolean : " + string(tempValue))
 			}
 			break
 
@@ -270,7 +292,7 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 
 		case reflect.Struct:
 			target := reflect.ValueOf(outValue).Elem()
-			tempPeekSize := uint32(0)
+			tempPeekSize := uint16(0)
 			for i, n := 0, target.NumField(); i < n; i++ {
 				fieldPeekSize := msg.Peek(target.Field(i).Addr().Interface())
 				msg.front += fieldPeekSize
@@ -278,23 +300,24 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 			}
 
 			msg.front -= tempPeekSize
+			peekSize = tempPeekSize
 			break
 
 		case reflect.String:
 			var length uint16
 			tempPeekSize := msg.Peek(&length)
-			tmpBuffer := msg.buffer[msg.front+tempPeekSize : msg.front+tempPeekSize+uint32(length)]
+			tmpBuffer := msg.buffer[msg.front+tempPeekSize : msg.front+tempPeekSize+length]
 			pOutValue := outValue.(*string)
 			*pOutValue = string(tmpBuffer)
-			peekSize = uint32(length) + tempPeekSize
+			peekSize = length + tempPeekSize
 			break
 
 		case reflect.Slice:
 			var length uint16
 			msg.Pop(&length)
 			pOutValue := outValue.(*[]byte)
-			*pOutValue = msg.buffer[msg.front : msg.front+uint32(length)]
-			peekSize = uint32(length)
+			*pOutValue = msg.buffer[msg.front : msg.front+length]
+			peekSize = length
 			break
 		}
 		break
@@ -303,7 +326,7 @@ func (msg *Message) Peek(outValue interface{}) uint32 {
 	return peekSize
 }
 
-func (msg *Message) Pop(outValue interface{}) uint32 {
+func (msg *Message) Pop(outValue interface{}) uint16 {
 	popSize := msg.Peek(outValue)
 
 	msg.front += popSize
@@ -311,39 +334,16 @@ func (msg *Message) Pop(outValue interface{}) uint32 {
 	return popSize
 }
 
-func (msg *Message) EncodeXOR(key uint8) {
-	if msg.isCryptoType(XOR) != true {
-		//TODO_MSG :: 로그 삽입
-		return
-	}
-
-	randKey := msg.buffer[2]
-	dstBuffer := msg.buffer[headerSize-1 : msg.rear]
-
-	num := uint32(1)
-	for i := range dstBuffer {
-		p := dstBuffer[i] ^ uint8(uint32(randKey)+num)
-		dstBuffer[i] = p ^ uint8(uint32(key)+num)
-	}
+func (msg *Message) Encode(key uint32) {
+	msg.encoder.Encode(key, msg.buffer[3:msg.GetSize()])
 }
 
-func (msg *Message) DecodeXOR(key uint8) {
-	if msg.isCryptoType(XOR) != true {
-		//TODO_MSG :: 로그 삽입
+func (msg *Message) Decode(key uint32) {
+	if msg.decoder.Decode(key, msg.buffer[3:msg.GetSize()]) == false {
 		return
 	}
 
-	randKey := msg.buffer[2]
-	dstBuffer := msg.buffer[headerSize-1 : msg.rear]
-
-	num := uint32(1)
-	for i := range dstBuffer {
-		p := dstBuffer[i] ^ uint8(uint32(key)+num)
-		dstBuffer[i] = p ^ uint8(uint32(randKey)+num)
-	}
-
-	//체크섬 확인
-	recvChecksum := dstBuffer[0]
+	recvChecksum := msg.GetChecksum()
 	generatedChecksum := msg.generateChecksum()
 	if recvChecksum != generatedChecksum {
 		//TODO_MSG :: 로그 삽입
@@ -352,119 +352,34 @@ func (msg *Message) DecodeXOR(key uint8) {
 	}
 }
 
-func (msg *Message) EncodeRSA(clientPublicKey *rsa.PublicKey) {
-	if msg.isCryptoType(RSA) != true {
-		//TODO_MSG :: 로그 삽입
-		return
-	}
-
-	cipherMsg, err := rsa.EncryptPKCS1v15(cryptoRand.Reader, clientPublicKey, msg.buffer)
-	if err != nil {
-		//TODO_MSG :: 로그 추가 필요
-		return
-	}
-
-	cipherMsgLength := len(cipherMsg)
-
-	msg.clear()
-	copy(msg.buffer, cipherMsg)
-	msg.rear += uint32(cipherMsgLength)
-}
-
-func (msg *Message) DecodeRSA(servPrivateKey *rsa.PrivateKey) {
-	if msg.isCryptoType(RSA) != true {
-		//TODO_MSG :: 로그 삽입
-		return
-	}
-
-	plainMsg, err := rsa.DecryptPKCS1v15(cryptoRand.Reader, servPrivateKey, msg.buffer)
-	if err != nil {
-		//TODO_MSG :: 로그 추가 필요
-		return
-	}
-
-	plainMsgLength := len(plainMsg)
-
-	msg.clear()
-	copy(msg.buffer, plainMsg)
-	msg.rear += uint32(plainMsgLength)
-}
-
-func (msg *Message) MoveFront(offset uint32) {
+func (msg *Message) MoveFront(offset uint16) {
 	msg.front += offset
 }
 
-func (msg *Message) MoveRear(offset uint32) {
+func (msg *Message) MoveRear(offset uint16) {
 	msg.rear += offset
 }
 
-func (msg *Message) clear() {
-	for i := range msg.buffer {
-		msg.buffer[i] = 0
-	}
-
-	msg.front = headerSize
-	msg.rear = headerSize
+func (msg *Message) Reset() {
+	msg.front = HeaderSize
+	msg.rear = HeaderSize
 }
 
-func (msg *Message) getFreeLength() uint32 {
+func (msg *Message) getFreeLength() uint16 {
 	tempFront := msg.front
 	tempRear := msg.rear
 
-	return (payloadSize - 1) - (tempRear - tempFront)
+	return (PayloadSize - 1) - (tempRear - tempFront)
 }
 
 func (msg *Message) generateChecksum() uint8 {
 	var total uint32
 
-	payload := msg.buffer[msg.front:msg.rear]
+	payload := msg.GetPayloadBuffer()
 
 	for i := range payload {
 		total += uint32(payload[i])
 	}
 
 	return uint8(total % 256)
-}
-
-func (msg *Message) packHeader(header NetHeader) {
-	msg.buffer[0] = byte(header.PacketType)
-	msg.buffer[1] = byte(header.CryptoType)
-	msg.buffer[2] = header.RandKey
-	msg.order.PutUint16(msg.buffer[3:5], header.PayloadLength)
-	msg.buffer[5] = header.CheckSum
-}
-
-func (msg *Message) isCryptoType(cryptoType CryptoType) bool {
-	return CryptoType(msg.buffer[1]) == cryptoType
-}
-
-func (msg *Message) IsValid() bool {
-	packetType := PacketType(msg.buffer[0])
-	cryptoType := CryptoType(msg.buffer[1])
-
-	switch packetType {
-	case SYN:
-		if cryptoType != NONE {
-			fmt.Printf("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
-			return false
-		}
-		break
-	case SYN_ACK:
-		if cryptoType != RSA {
-			fmt.Printf("packet is invalid | cryptoType[%d] packetType[%d]", cryptoType, packetType)
-			return false
-		}
-		break
-	case ESTABLISHED:
-		break
-	}
-	return true
-}
-
-func (msg *Message) GetType() PacketType {
-	return PacketType(msg.buffer[0])
-}
-
-func (msg *Message) GetCryptoType() CryptoType {
-	return CryptoType(msg.buffer[1])
 }
