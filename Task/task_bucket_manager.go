@@ -6,7 +6,7 @@ import (
 )
 
 func GetBucket(bucketID uint16) *TaskBucket {
-	var bucketManager *TaskBucketManager = singleton.GetInstance[TaskBucketManager]()
+	bucketManager := singleton.GetInstance[TaskBucketManager]()
 	if _, exist := bucketManager.buckets[bucketID]; exist == false {
 		if bucketManager.CreateBucket(bucketID, 1, 1) == false {
 			return nil
@@ -26,13 +26,13 @@ func (m *TaskBucketManager) Init() {
 
 func (m *TaskBucketManager) CreateBucket(bucketID uint16, maxInvokers uint8, maxBuckets uint8) bool {
 	if _, exist := m.buckets[bucketID]; exist == true {
-		netlogger.GetLogger().Warn("already has bucket | id[%d]", bucketID)
+		netlogger.Warning("already has bucket | id[%d]", bucketID)
 		return false
 	}
 
 	bucket := NewBucket(bucketID, maxInvokers, maxBuckets)
 	if bucket == nil {
-		netlogger.GetLogger().Warn("Failed to create new bucket | id[%d]", bucketID)
+		netlogger.Warning("Failed to create new bucket | id[%d]", bucketID)
 		return false
 	}
 

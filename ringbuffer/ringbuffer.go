@@ -3,8 +3,7 @@ package ringbuffer
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
-	. "gonetlib/netlogger"
+	"gonetlib/netlogger"
 	"gonetlib/util"
 	"log"
 	"reflect"
@@ -92,7 +91,7 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 
 	emptySize := ring.GetEmptySize()
 	if emptySize < pushSize {
-		GetLogger().Error("no have enough space in ring buffer")
+		netlogger.Error("no have enough space in ring buffer")
 		return 0
 	}
 
@@ -234,7 +233,7 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 			} else if tempValue == 0 {
 				*pOutValue = false
 			} else {
-				GetLogger().Error("peeked value is not boolean : " + string(tempValue))
+				netlogger.Error("peeked value is not boolean : " + string(tempValue))
 			}
 			break
 
@@ -302,7 +301,7 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 			buf := bytes.NewReader(tmpBuffer)
 			err := binary.Read(buf, ring.order, outValue)
 			if err != nil {
-				fmt.Println("binary.Read failed:", err)
+				netlogger.Error("binary.Read failed:", err)
 			}
 			peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
 			break

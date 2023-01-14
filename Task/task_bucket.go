@@ -39,12 +39,12 @@ type TaskBucket struct {
 
 func (b *TaskBucket) AddTask(task ITask, invokerID uint16) bool {
 	if task == nil {
-		netlogger.GetLogger().Error("Invalid task")
+		netlogger.Error("Invalid task")
 		return false
 	}
 
 	if b.invokers[invokerID] == nil {
-		netlogger.GetLogger().Error("Not found invoker | invokerID[%d] invokers[%d]", invokerID, len(b.invokers))
+		netlogger.Error("Not found invoker | invokerID[%d] invokers[%d]", invokerID, len(b.invokers))
 		return false
 	}
 

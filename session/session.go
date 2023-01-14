@@ -7,11 +7,10 @@ package session
 import (
 	"bytes"
 	"crypto/rsa"
-	"fmt"
 	. "gonetlib/message"
-	. "gonetlib/netlogger"
+	"gonetlib/netlogger"
 	. "gonetlib/ringbuffer"
-	util "gonetlib/util"
+	"gonetlib/util"
 	"io"
 	"net"
 	"sync"
@@ -79,7 +78,7 @@ func NewSession() *Session {
 
 func (session *Session) Setup(sessionID uint64, connection net.Conn, node INode) {
 	if connection == nil {
-		GetLogger().Error("connection is nullptr")
+		netlogger.Error("connection is nullptr")
 		return
 	}
 
@@ -127,7 +126,7 @@ func (session *Session) Reset() {
 
 func (session *Session) SendPost(packet *Message) bool {
 	if packet == nil {
-		GetLogger().Error("Failed to send | packet is nullptr")
+		netlogger.Error("Failed to send | packet is nullptr")
 		return false
 	}
 
@@ -160,7 +159,7 @@ func (session *Session) connectHandler() {
 		session.release()                                  //ref = 1
 	}()
 
-	fmt.Println("success to connect! : ", session.id)
+	netlogger.Info("success to connect! : ", session.id)
 
 	session.node.OnConnect()
 
@@ -171,12 +170,12 @@ func (session *Session) connectHandler() {
 
 // 수신 스레드
 func (session *Session) asyncRead() {
-	fmt.Printf("begin async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
+	netlogger.Info("begin async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 	session.wg.Add(1)
 
 	defer func() {
 		session.wg.Done()
-		fmt.Printf("end async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
+		netlogger.Info("end async read routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 		session.release()
 	}()
 
@@ -195,19 +194,16 @@ func (session *Session) asyncRead() {
 func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 	if recvErr != nil {
 		if recvErr == io.EOF {
-			GetLogger().Error("connection is closed from client : " + session.socket.RemoteAddr().String())
-			fmt.Printf("connection is closed from client : %s", session.socket.RemoteAddr().String())
+			netlogger.Error("connection is closed from client : " + session.socket.RemoteAddr().String())
 			return false
 		} else {
-			GetLogger().Error("read error : " + recvErr.Error())
-			fmt.Printf("read error : %s", recvErr.Error())
+			netlogger.Error("read error : " + recvErr.Error())
 			return false
 		}
 	}
 
 	if session.recvBuffer.MoveRear(recvSize) == false {
-		GetLogger().Error("failed to receive | recvSize[%d]", recvSize)
-		fmt.Printf("failed to receive | recvSize[%d]\n", recvSize)
+		netlogger.Error("failed to receive | recvSize[%d]", recvSize)
 		return false
 	}
 
@@ -231,7 +227,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 		packet.MoveRear(packet.GetExpectedPayloadSize())
 
 		if session.onRecv(packet) == false {
-			fmt.Printf("on recv is false")
+			netlogger.Error("on recv is false")
 			return false
 		}
 
@@ -244,7 +240,7 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 // 패킷 수신 이벤트 함수 : 수신 스레드에서만 접근
 func (session *Session) onRecv(packet *Message) bool {
 	if packet == nil {
-		fmt.Printf("packet is nil")
+		netlogger.Error("packet is nil")
 		return false
 	}
 
@@ -253,24 +249,24 @@ func (session *Session) onRecv(packet *Message) bool {
 		packet.Decode(session.keys.XOR)
 
 		if session.node == nil {
-			fmt.Printf("Session node is null")
+			netlogger.Error("Session node is null")
 			return false
 		}
 
 		if session.node.OnRecv(packet) == false {
-			fmt.Printf("Failed to recv on a session node")
+			netlogger.Error("Failed to recv on a session node")
 			return false
 		}
 
 		break
 	case SetKey:
 		if session.setkey(packet) == false {
-			fmt.Printf("Failed to setup key")
+			netlogger.Error("Failed to setup key")
 			return false
 		}
 		break
 	default:
-		fmt.Printf("Invalid packet type")
+		netlogger.Error("Invalid packet type")
 		return false
 	}
 
@@ -286,12 +282,12 @@ func (session *Session) sendHandler() {
 }
 
 func (session *Session) asyncWrite() {
-	fmt.Printf("begin async write routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
+	netlogger.Info("begin async write routine... | sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 	session.wg.Add(1)
 
 	defer func() {
 		session.wg.Done()
-		fmt.Printf("end async write routine... |	sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
+		netlogger.Info("end async write routine... |	sessionID[%d] refCount[%d] releaseFlag[%d]\n", session.id, session.ioblock.refCount, session.ioblock.releaseFlag)
 		session.release()
 		session.sendOnce.Reset()
 	}()
@@ -310,8 +306,7 @@ func (session *Session) asyncWrite() {
 	_ = session.socket.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	sendBytes, err := session.socket.Write(sendBuffer.Bytes())
 	if err != nil {
-		fmt.Printf("Failed to send packet to client | err[%s] sendBytes[%d]\n", err.Error(), sendBuffer.Len())
-		GetLogger().Error("Failed to send packet to client | err[%s] sendBytes[%d]", err.Error(), sendBuffer.Len())
+		netlogger.Error("Failed to send packet to client | err[%s] sendBytes[%d]", err.Error(), sendBuffer.Len())
 		return
 	}
 
@@ -363,7 +358,7 @@ func (session *Session) release() {
 
 	} else if refCount < 0 {
 		//fatal : 문제가 심각함
-		GetLogger().Error("session refer count is minus | refCount[%d]", refCount)
+		netlogger.Error("session refer count is minus | refCount[%d]", refCount)
 		return
 	}
 }
@@ -375,8 +370,7 @@ func (session *Session) canDisconnect() bool {
 	originIOBlock := (*int64)(unsafe.Pointer(&session.ioblock))
 
 	if util.InterlockedCompareExchange64(originIOBlock, *destIOBlock, *compareIOBlock) == false {
-		GetLogger().Debug("Can't release | originBlock[%d]", *originIOBlock)
-		fmt.Printf("Can't release | originBlock[%d]\n", *originIOBlock)
+		netlogger.Debug("Can't release | originBlock[%d]", *originIOBlock)
 		return false
 	}
 

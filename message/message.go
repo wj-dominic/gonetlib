@@ -2,10 +2,8 @@ package message
 
 import (
 	"encoding/binary"
-	"fmt"
 	"gonetlib/netlogger"
 	"gonetlib/util"
-	"log"
 	"math/rand"
 	"reflect"
 )
@@ -128,7 +126,6 @@ func (msg *Message) Push(value interface{}) uint16 {
 	pushSize := uint16(util.Sizeof(reflect.ValueOf(value)))
 
 	if msg.getFreeLength() < pushSize {
-		fmt.Println(value, pushSize)
 		return 0
 	}
 
@@ -346,8 +343,7 @@ func (msg *Message) Decode(key uint32) {
 	recvChecksum := msg.GetChecksum()
 	generatedChecksum := msg.generateChecksum()
 	if recvChecksum != generatedChecksum {
-		//TODO_MSG :: 로그 삽입
-		log.Fatalln("mismatch check sum : ", recvChecksum, generatedChecksum)
+		netlogger.Error("mismatch check sum : ", recvChecksum, generatedChecksum)
 		return
 	}
 }

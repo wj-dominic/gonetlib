@@ -2,116 +2,227 @@ package netlogger
 
 import (
 	"fmt"
+	"gonetlib/util"
 	"gonetlib/util/singleton"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type Level uint32
 
 const (
-	Error = 0 + iota
-	Warning
-	Info
-	Debug
-	Max
+	ErrorLevel Level = 0 + iota
+	WarningLevel
+	InfoLevel
+	DebugLevel
+	MaxLevel
 )
 
 var levelStr = [4]string{"ERROR", "WARNING", "INFO", "DEBUG"}
 
-type NetLogger struct {
-	logFile   *os.File
-	level     Level
-	directory string
-	logName   string
-	msg       chan string
-	stop      chan bool
-	isRunning bool
+type defaultNetLogger struct {
+	loggers   [2]*NetLogger
+	curIndex  uint32
+	prevIndex uint32
+
+	logOption *NetLoggerOption
 }
 
-func (l *NetLogger) Init() {
-	msg := make(chan string)
-	stop := make(chan bool)
+func (dl *defaultNetLogger) current() *NetLogger {
+	return dl.loggers[dl.curIndex]
+}
 
-	l.logFile = nil
-	l.level = Error
-	l.directory = "./"
-	l.logName = "Logger.log"
-	l.msg = msg
-	l.stop = stop
+func (dl *defaultNetLogger) prev() *NetLogger {
+	return dl.loggers[dl.prevIndex]
+}
+
+func (dl *defaultNetLogger) change() {
+	dl.prev().SetOption(dl.logOption)
+	dl.prevIndex = atomic.SwapUint32(&dl.curIndex, dl.prevIndex)
+}
+
+func (dl *defaultNetLogger) setoption(option *NetLoggerOption) {
+	dl.logOption = option
+	dl.change()
+}
+
+var std = &defaultNetLogger{loggers: [2]*NetLogger{New(), New()}, curIndex: 0, prevIndex: 1, logOption: newLoggerOption()}
+
+func logging(level Level, format string, args ...interface{}) {
+	std.current().Log(level, format, args...)
+}
+
+func Error(format string, args ...interface{}) {
+	logging(ErrorLevel, format, args...)
+}
+
+func Warning(format string, args ...interface{}) {
+	logging(WarningLevel, format, args...)
+}
+
+func Info(format string, args ...interface{}) {
+	logging(InfoLevel, format, args...)
+}
+
+func Debug(format string, args ...interface{}) {
+	logging(WarningLevel, format, args...)
+}
+
+func SetOption(option *NetLoggerOption) *NetLogger {
+	std.setoption(option)
+	return std.current()
+}
+
+func SetLevel(level Level) *NetLogger {
+	std.logOption.SetLevel(level)
+	std.setoption(std.logOption)
+	return std.current()
+}
+
+func SetFileName(name string) *NetLogger {
+	std.logOption.SetFileName(name)
+	std.setoption(std.logOption)
+	return std.current()
+}
+
+func SetTickDuration(millisec time.Duration) *NetLogger {
+	std.logOption.SetTickDuration(millisec)
+	std.setoption(std.logOption)
+	return std.current()
+}
+
+type NetLogger struct {
+	logFile   *os.File
+	msg       chan string
+	stop      chan bool
+	isRunning uint32
+
+	option *NetLoggerOption
+
+	wg sync.WaitGroup
+}
+
+type NetLoggerOption struct {
+	level        Level
+	tickDuration time.Duration
+	logFileName  string
+}
+
+func newLoggerOption() *NetLoggerOption {
+	return &NetLoggerOption{
+		level:        ErrorLevel,
+		tickDuration: time.Second * 3,
+		logFileName:  "./netlogger",
+	}
+}
+
+func (op *NetLoggerOption) SetLevel(level Level) {
+	op.level = level
+}
+
+func (op *NetLoggerOption) SetFileName(name string) {
+	if len(name) > 0 {
+		dir := filepath.Dir(name)
+		if util.IsExistPath(dir) == false {
+			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+				return
+			}
+		}
+
+		if len(filepath.Ext(name)) >= 0 {
+			baseName := filepath.Base(name)
+			name = dir + "/" + baseName
+		}
+
+		op.logFileName = name
+	}
+}
+
+func (op *NetLoggerOption) SetTickDuration(millisec time.Duration) {
+	op.tickDuration = millisec
+}
+
+func New() *NetLogger {
+	var logger NetLogger
+	logger.Init()
+
+	return &logger
 }
 
 func GetLogger() *NetLogger {
 	return singleton.GetInstance[NetLogger]()
 }
 
+func (l *NetLogger) Init() {
+	l.logFile = nil
+	l.msg = make(chan string)
+	l.stop = make(chan bool)
+
+	l.option = newLoggerOption()
+}
+
 func (l *NetLogger) Start() error {
-	if l.isRunning {
-		return nil
+	if atomic.CompareAndSwapUint32(&l.isRunning, 0, 1) == false {
+		return fmt.Errorf("already start a logger")
 	}
 
-	err := l.setDirectory()
+	nowTime := time.Now().Format("20060102150405")
+	fileName := l.option.logFileName + "_" + nowTime + ".log"
+	logFile, err := os.OpenFile(fileName, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
 
-	logFile, err := os.OpenFile(l.directory+"/"+l.logName, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return err
-	}
 	l.logFile = logFile
 
-	go l.loggerProc()
+	l.wg.Add(1)
 
-	l.isRunning = true
+	go l.Tick()
 
 	return nil
 }
 
-func (l *NetLogger) Stop() {
+func (l *NetLogger) Stop() bool {
+	if atomic.CompareAndSwapUint32(&l.isRunning, 1, 0) == false {
+		return false
+	}
+
 	l.stop <- true
+
+	l.wg.Wait()
+
 	l.logFile.Close()
-}
 
-func (l *NetLogger) SetLogConfig(level Level, dir string, logName string) {
-	l.level = level
-
-	if len(dir) == 0 {
-		dir = "./"
-	}
-	l.directory = dir
-
-	if len(logName) == 0 {
-		logName = filepath.Base(os.Args[0])
-		logName = logName[:len(logName)-len(filepath.Ext(logName))] + ".log"
-	}
-	l.logName = logName
+	return true
 }
 
 func (l *NetLogger) Error(format string, v ...interface{}) {
-	l.log(Error, format, v...)
+	l.Log(ErrorLevel, format, v...)
 }
 
 func (l *NetLogger) Warn(format string, v ...interface{}) {
-	l.log(Warning, format, v...)
+	l.Log(WarningLevel, format, v...)
 }
 
 func (l *NetLogger) Info(format string, v ...interface{}) {
-	l.log(Info, format, v...)
+	l.Log(InfoLevel, format, v...)
 }
 
 func (l *NetLogger) Debug(format string, v ...interface{}) {
-	l.log(Debug, format, v...)
+	l.Log(DebugLevel, format, v...)
 }
 
-//func (l *NetLogger) log(level Level, msg string) {
-func (l *NetLogger) log(level Level, format string, v ...interface{}) {
-	if !l.isRunning {
-		return
+func (l *NetLogger) Log(level Level, format string, v ...interface{}) {
+	if l.isRunning == 0 {
+		if err := l.Start(); err != nil {
+			return
+		}
 	}
 
-	if level > l.level {
+	if level > l.option.level {
 		return
 	}
 
@@ -120,49 +231,53 @@ func (l *NetLogger) log(level Level, format string, v ...interface{}) {
 	l.msg <- log
 }
 
-func (l *NetLogger) loggerProc() {
-	// TODO: ticker duration 변경 가능하도록
-	ticker := time.NewTicker(time.Second * 3)
+func (l *NetLogger) Tick() {
+	defer l.wg.Done()
+
+	ticker := time.NewTicker(l.option.tickDuration)
 
 	for {
 		select {
 		case <-l.stop:
+			l.flushLog()
 			return
 		case <-ticker.C:
-			l.writeLog()
+			l.flushLog()
 		}
 	}
 }
 
-func (l *NetLogger) writeLog() {
+func (l *NetLogger) flushLog() {
 	for {
 		select {
 		case msg := <-l.msg:
-			l.logFile.WriteString(msg)
+			l.writeLog(msg)
 		default:
 			return
 		}
 	}
 }
 
-func (l *NetLogger) SetLevel(level Level) {
-	l.level = level
+func (l *NetLogger) writeLog(msg string) {
+	l.logFile.WriteString(msg)
 }
 
-func (l *NetLogger) setDirectory() error {
-	if isExistFile(l.directory) {
-		return nil
-	}
-
-	err := os.MkdirAll(l.directory, os.ModePerm)
-
-	return err
+func (l *NetLogger) SetOption(option *NetLoggerOption) *NetLogger {
+	l.SetLevel(option.level).SetFileName(option.logFileName).SetTickDuration(option.tickDuration)
+	return l
 }
 
-func isExistFile(name string) bool {
-	if _, err := os.Stat(name); os.IsNotExist(err) {
-		return false
-	}
+func (l *NetLogger) SetLevel(level Level) *NetLogger {
+	l.option.SetLevel(level)
+	return l
+}
 
-	return true
+func (l *NetLogger) SetFileName(name string) *NetLogger {
+	l.option.SetFileName(name)
+	return l
+}
+
+func (l *NetLogger) SetTickDuration(millisec time.Duration) *NetLogger {
+	l.option.SetTickDuration(millisec)
+	return l
 }

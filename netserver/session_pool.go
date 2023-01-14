@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
-	. "gonetlib/netlogger"
+	"gonetlib/netlogger"
 	"gonetlib/session"
 )
 
@@ -51,7 +51,7 @@ func (sp *sessionPool) releaseSession(sessionId uint64) error {
 	session := sp.pool[sessionId]
 	if session == nil {
 		err := fmt.Sprintf("failed to find session(%d)", sessionId)
-		GetLogger().Error(err)
+		netlogger.Error(err)
 		return errors.New(err)
 	}
 

@@ -2,7 +2,7 @@ package generator
 
 import (
 	"fmt"
-	"log"
+	"gonetlib/netlogger"
 	"os"
 	"path"
 	"path/filepath"
@@ -60,7 +60,7 @@ func (g *Generator) Generate(idlPath string) bool {
 func (g *Generator) checkValid(idlPath string) bool {
 	_, err := os.Stat(idlPath)
 	if os.IsNotExist(err) {
-		log.Fatalf("Path is not exist | path[%s]", idlPath)
+		netlogger.Error("Path is not exist | path[%s]", idlPath)
 		return false
 	}
 
@@ -83,7 +83,7 @@ func (g *Generator) checkValid(idlPath string) bool {
 
 	for _, file := range files {
 		if strings.Contains(file.Name(), "gen") {
-			fmt.Printf("file.Name(): %v\n", file.Name())
+			netlogger.Error("file.Name(): %v\n", file.Name())
 		}
 	}
 
@@ -236,7 +236,7 @@ func (g *Generator) makeGenFile(filePath string, data string) bool {
 
 	file, err := os.Create(filePath)
 	if err != nil {
-		fmt.Printf("err: %v\n", err)
+		netlogger.Error("err: %v\n", err)
 		return false
 	}
 
@@ -244,7 +244,7 @@ func (g *Generator) makeGenFile(filePath string, data string) bool {
 
 	_, err = file.WriteString(data)
 	if err != nil {
-		fmt.Printf("err: %v\n", err)
+		netlogger.Error("err: %v\n", err)
 		return false
 	}
 
@@ -254,7 +254,7 @@ func (g *Generator) makeGenFile(filePath string, data string) bool {
 func (g *Generator) deleteGenFiles() bool {
 	files, err := os.ReadDir(g.GenRootDir)
 	if err != nil {
-		fmt.Printf("err: %v\n", err)
+		netlogger.Error("err: %v\n", err)
 	}
 
 	for _, file := range files {
@@ -265,7 +265,7 @@ func (g *Generator) deleteGenFiles() bool {
 		filePath := path.Join(g.GenRootDir, file.Name())
 
 		if err = os.Remove(filePath); err != nil {
-			fmt.Printf("err: %v\n", err)
+			netlogger.Error("err: %v\n", err)
 			return false
 		}
 	}

@@ -1,7 +1,7 @@
 package netserver
 
 import (
-	. "gonetlib/netlogger"
+	"gonetlib/netlogger"
 	"log"
 	"net"
 )
@@ -15,11 +15,7 @@ type NetServer struct {
 func Run(address string) error {
 
 	// 1. start logger
-	GetLogger().SetLogConfig(Max, "", "")
-	err := GetLogger().Start()
-	if err != nil {
-		log.Print(err.Error())
-	}
+	netlogger.SetFileName("./netserver")
 
 	// 2. create NetServer
 	server := &NetServer{
@@ -33,29 +29,29 @@ func Run(address string) error {
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", server.addr)
 	if err != nil {
-		GetLogger().Error(err.Error())
+		netlogger.Error(err.Error())
 		log.Fatal(err.Error())
 	}
 
 	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
-		GetLogger().Error(err.Error())
+		netlogger.Error(err.Error())
 		log.Fatal(err.Error())
 	}
 	defer listener.Close()
 
-	GetLogger().Info("Server is running")
+	netlogger.Info("Server is running")
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			GetLogger().Error(err.Error())
+			netlogger.Error(err.Error())
 			break
 		}
 
 		err = server.sessionMgr.RequestNewSession(conn)
 		if err != nil {
-			GetLogger().Error(err.Error())
+			netlogger.Error(err.Error())
 			conn.Close()
 
 			continue
@@ -67,6 +63,5 @@ func Run(address string) error {
 
 func (s *NetServer) Stop() error {
 	s.sessionMgr.Stop()
-	GetLogger().Stop()
 	return nil
 }

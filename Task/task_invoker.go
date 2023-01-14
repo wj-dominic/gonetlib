@@ -39,10 +39,9 @@ func (i *TaskInvoker) proc(ctx context.Context) {
 		select {
 		case task := <-*i.bucket:
 			task.Run()
-			break
 
-		case _ = <-ctx.Done():
-			netlogger.GetLogger().Debug("task invoker is done | id[%d]", i.id)
+		case <-ctx.Done():
+			netlogger.Debug("task invoker is done | id[%d]", i.id)
 			return
 		}
 	}

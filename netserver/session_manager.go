@@ -2,7 +2,7 @@ package netserver
 
 import (
 	"errors"
-	. "gonetlib/netlogger"
+	"gonetlib/netlogger"
 	"gonetlib/node"
 	"net"
 	"time"
@@ -38,7 +38,7 @@ func (sm *SessionManager) RequestNewSession(conn net.Conn /* conn, node */) erro
 	sessionId, session := sm.pool.acquireSession()
 	if session == nil {
 		err := errors.New("failed to acquireSession()")
-		GetLogger().Error(err.Error())
+		netlogger.Error(err.Error())
 		return err
 	}
 
@@ -67,7 +67,7 @@ func (sm *SessionManager) checkSession() {
 	for i := sm.pool.getObjCount(); i > 0; i++ {
 		session := sm.pool.getSession(i)
 		if session == nil {
-			GetLogger().Error("session(%d) not found", i)
+			netlogger.Error("session(%d) not found", i)
 			continue
 		}
 

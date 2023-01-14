@@ -1,14 +1,12 @@
 package generator
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"go/types"
+	"gonetlib/netlogger"
 	"gonetlib/util"
-	"log"
-	"os"
 )
 
 type Field struct {
@@ -44,13 +42,13 @@ func (p *IDLParser) Parse(srcPath string) bool {
 
 	fset := token.NewFileSet()
 	if fset == nil {
-		fmt.Println("Failed to make a new file set from generator")
+		netlogger.Error("Failed to make a new file set from generator\n")
 		return false
 	}
 
 	pkgs, err := parser.ParseDir(fset, srcPath, nil, parser.ParseComments)
 	if err != nil {
-		fmt.Printf("Failed to parse dir | path[%s] err[%s]\n", srcPath, err)
+		netlogger.Error("Failed to parse dir | path[%s] err[%s]\n", srcPath, err)
 		return false
 	}
 
@@ -60,7 +58,7 @@ func (p *IDLParser) Parse(srcPath string) bool {
 		for filePath, file := range pkg.Files {
 			idlFile := p.parse(file)
 			if idlFile == nil {
-				log.Fatalf("Failed to parse to idl file [path:%s]\n", filePath)
+				netlogger.Error("Failed to parse to idl file [path:%s]\n", filePath)
 				continue
 			}
 
@@ -127,11 +125,5 @@ func (p *IDLParser) reset() {
 }
 
 func (p *IDLParser) isValid(filePath string) bool {
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		log.Fatalf("Path is not exist | path[%s]", filePath)
-		return false
-	}
-
-	return true
+	return util.IsExistPath(filePath)
 }
