@@ -159,7 +159,7 @@ func (session *Session) connectHandler() {
 		session.release()                                  //ref = 1
 	}()
 
-	netlogger.Info("success to connect! : ", session.id)
+	netlogger.Info("success to connect! : %d", session.id)
 
 	session.node.OnConnect()
 
@@ -180,10 +180,13 @@ func (session *Session) asyncRead() {
 	}()
 
 	for {
+		//버퍼 획득
 		buffer := session.recvBuffer.GetRearBuffer()
 
+		//소켓 버퍼에 앱 버퍼 등록 -> block socket
 		recvSize, err := session.socket.Read(buffer)
 
+		//링버퍼에 데이터가 들어왔음 핸들링 처리
 		if session.recvHandler(uint32(recvSize), err) == false {
 			break
 		}
@@ -214,18 +217,23 @@ func (session *Session) recvHandler(recvSize uint32, recvErr error) bool {
 			break
 		}
 
+		//net 헤더 사이즈만큼 Peek
 		session.recvBuffer.Peek(packet.GetHeaderBuffer(), uint32(packet.GetHeaderSize()))
 
+		//링버퍼에 패킷 사이즈만큼 없을 경우 핸들링 처리 안함
 		expectedPacketSize := packet.GetHeaderSize() + packet.GetExpectedPayloadSize()
 		if uint16(session.recvBuffer.GetUseSize()) < expectedPacketSize {
 			break
 		}
 
+		//패킷 사이즈만큼 있으므로 앞에서 Peek한 만큼 링버퍼 소모
 		session.recvBuffer.MoveFront(uint32(packet.GetHeaderSize()))
 
+		//헤더에 있는 Payload 사이즈만큼 데이터 복사
 		session.recvBuffer.Read(packet.GetPayloadBuffer(), uint32(packet.GetExpectedPayloadSize()))
 		packet.MoveRear(packet.GetExpectedPayloadSize())
 
+		//패킷이 준비되었으므로 패킷 해석
 		if session.onRecv(packet) == false {
 			netlogger.Error("on recv is false")
 			return false
@@ -246,6 +254,7 @@ func (session *Session) onRecv(packet *Message) bool {
 
 	switch packet.GetType() {
 	case Default:
+		//암호화된 패킷 해석
 		packet.Decode(session.keys.XOR)
 
 		if session.node == nil {
@@ -253,6 +262,7 @@ func (session *Session) onRecv(packet *Message) bool {
 			return false
 		}
 
+		//애플리케이션 영역으로 완성된 패킷 전달
 		if session.node.OnRecv(packet) == false {
 			netlogger.Error("Failed to recv on a session node")
 			return false

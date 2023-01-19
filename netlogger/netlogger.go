@@ -113,7 +113,7 @@ type NetLoggerOption struct {
 
 func newLoggerOption() *NetLoggerOption {
 	return &NetLoggerOption{
-		level:        ErrorLevel,
+		level:        MaxLevel,
 		tickDuration: time.Second * 3,
 		logFileName:  "./netlogger",
 	}
