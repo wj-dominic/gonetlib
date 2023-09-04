@@ -301,7 +301,7 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 			buf := bytes.NewReader(tmpBuffer)
 			err := binary.Read(buf, ring.order, outValue)
 			if err != nil {
-				netlogger.Error("binary.Read failed:", err)
+				netlogger.Error("binary Read failed:%s", err.Error())
 			}
 			peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
 			break

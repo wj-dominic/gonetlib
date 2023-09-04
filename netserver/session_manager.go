@@ -64,7 +64,7 @@ func (sm *SessionManager) checkSessionProc() {
 }
 
 func (sm *SessionManager) checkSession() {
-	for i := sm.pool.getObjCount(); i > 0; i++ {
+	for i := uint64(0); i < sm.pool.getObjCount(); i++ {
 		session := sm.pool.getSession(i)
 		if session == nil {
 			netlogger.Error("session(%d) not found", i)

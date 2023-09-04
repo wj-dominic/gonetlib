@@ -21,8 +21,9 @@ func NewSessionPool(initCnt uint64) *sessionPool {
 	pool.pool = make(map[uint64]*session.Session, initCnt)
 	pool.idStack = list.New()
 
-	for i := initCnt - 1; i > 0; i-- {
-		pool.pool[i] = session.NewSession()
+	for i := int64(initCnt - 1); i >= 0; i-- {
+		index := uint64(i)
+		pool.pool[index] = session.NewSession()
 		pool.idStack.PushBack(i)
 	}
 
