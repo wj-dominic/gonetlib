@@ -1,4 +1,4 @@
-package gonet
+package server
 
 import (
 	"context"
@@ -12,7 +12,7 @@ type SessionManager struct {
 	pool sync.Pool
 }
 
-func NewSessionManager(ctx context.Context, limit uint32) *SessionManager {
+func CreateSessionManager(ctx context.Context, limit uint32) *SessionManager {
 	return &SessionManager{
 		ctx: ctx,
 		pool: sync.Pool{
@@ -24,5 +24,5 @@ func NewSessionManager(ctx context.Context, limit uint32) *SessionManager {
 }
 
 func (s *SessionManager) NewSession(context.Context, net.Conn) ISession {
-
+	return session.NewSession()
 }

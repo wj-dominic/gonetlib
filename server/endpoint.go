@@ -1,4 +1,4 @@
-package gonet
+package server
 
 import "fmt"
 

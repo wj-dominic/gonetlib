@@ -1,4 +1,4 @@
-package gonet
+package server
 
 import (
 	"context"
@@ -6,15 +6,15 @@ import (
 	"sync"
 )
 
-type AcceptEvent struct {
-	OnAccept   func(net.Conn)
-	OnRecvFrom func(net.Addr, []byte, uint32)
+type IAcceptHandler interface {
+	OnAccept(net.Conn)
+	OnRecvFrom(net.Addr, []byte, uint32)
 }
 
 type IAcceptor interface {
 	StartAccept() bool
 	StopAccept()
-	SetEvent(*AcceptEvent)
+	SetHandler(IAcceptHandler)
 }
 
 const (
@@ -27,10 +27,10 @@ type Acceptor struct {
 	listenConfig net.ListenConfig
 	ctx          context.Context
 	wg           sync.WaitGroup
-	event        *AcceptEvent
+	handler      IAcceptHandler
 }
 
-func NewAcceptor(ctx context.Context, protocols Protocol, endpoint Endpoint) IAcceptor {
+func CreateAcceptor(ctx context.Context, protocols Protocol, endpoint Endpoint) IAcceptor {
 	return &Acceptor{
 		ctx:       ctx,
 		protocols: protocols,
@@ -38,8 +38,8 @@ func NewAcceptor(ctx context.Context, protocols Protocol, endpoint Endpoint) IAc
 	}
 }
 
-func (a *Acceptor) SetEvent(event *AcceptEvent) {
-	a.event = event
+func (a *Acceptor) SetHandler(handler IAcceptHandler) {
+	a.handler = handler
 }
 
 func (a *Acceptor) StartAccept() bool {
@@ -114,14 +114,14 @@ func (a *Acceptor) StartAccept() bool {
 }
 
 func (a *Acceptor) onAccept(conn net.Conn) {
-	if a.event != nil {
-		a.event.OnAccept(conn)
+	if a.handler != nil {
+		a.handler.OnAccept(conn)
 	}
 }
 
 func (a *Acceptor) onRecvFrom(client net.Addr, recvData []byte, recvBytes uint32) {
-	if a.event != nil {
-		a.event.OnRecvFrom(client, recvData, recvBytes)
+	if a.handler != nil {
+		a.handler.OnRecvFrom(client, recvData, recvBytes)
 	}
 }
 

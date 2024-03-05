@@ -1,4 +1,4 @@
-package gonet
+package server
 
 type Protocol byte
 

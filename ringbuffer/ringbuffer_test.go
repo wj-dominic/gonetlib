@@ -10,7 +10,7 @@ const (
 	buff_size   uint32 = 300
 )
 
-//*
+// *
 func TestRingBuffer_Read(t *testing.T) {
 	ringBuffer := NewRingBuffer(true, 300)
 
