@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"gonetlib/logger"
 	"net"
 )
 
@@ -30,6 +32,7 @@ type Server struct {
 	acceptor IAcceptor
 	sessions ISessionManager
 	handler  IServerHandler
+	logger   logger.ILogger
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -37,6 +40,8 @@ type Server struct {
 
 func (s *Server) Run() bool {
 	if s.acceptor.StartAccept() == false {
+		s.logger.Error("")
+		fmt.Println()
 		return false
 	}
 

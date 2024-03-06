@@ -1,24 +1,27 @@
 package logger
 
 type ILogger interface {
-	Debug(string)
-	Information(string)
-	Warning(string)
-	Error(string)
+	Debug(message string, fields ...Field)
+	Info(message string, fields ...Field)
+	Warn(message string, fields ...Field)
+	Error(message string, fields ...Field)
 }
 
 type Logger struct {
 }
 
-func (logger *Logger) Debug(message string) {
+func Create(config Config) ILogger {
+	return &Logger{}
 }
 
-func (logger *Logger) Information(message string) {
+func (logger *Logger) Debug(message string, fields ...Field) {
+}
+
+func (logger *Logger) Info(message string, fields ...Field) {
 
 }
-func (logger *Logger) Warning(message string) {
+func (logger *Logger) Warn(message string, fields ...Field) {
 
 }
-func (logger *Logger) Error(message string) {
-
+func (logger *Logger) Error(message string, fields ...Field) {
 }
