@@ -41,7 +41,7 @@ type Server struct {
 func (s *Server) Run() bool {
 	if s.acceptor.StartAccept() == false {
 		s.logger.Error("")
-		fmt.Println()
+		fmt.Print()
 		return false
 	}
 
