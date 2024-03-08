@@ -1,5 +1,10 @@
 package logger
 
+import (
+	"context"
+	"time"
+)
+
 type RollingInterval uint8
 
 const (
@@ -12,6 +17,7 @@ type config struct {
 	limitLevel     Level
 	writeToConsole writeToConsole
 	writeToFile    WriteToFile
+	tickDuration   time.Duration
 }
 
 type writeTo struct {
@@ -41,11 +47,17 @@ func CreateLoggerConfig() *config {
 			RollingInterval: RollingIntervalDay,
 			RollingFileSize: 1024 * 1024 * 10, //10mb
 		},
+		tickDuration: time.Second, //1초
 	}
 }
 
-func (config *config) SetLimitLevel(level Level) *config {
+func (config *config) MinimumLevel(level Level) *config {
 	config.limitLevel = level
+	return config
+}
+
+func (config *config) TickDuration(ms time.Duration) *config {
+	config.tickDuration = ms
 	return config
 }
 
@@ -72,6 +84,6 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 	return config
 }
 
-func (config *config) CreateLogger() ILogger {
-	return CreateLogger(*config)
+func (config *config) CreateLogger(ctx context.Context) ILogger {
+	return CreateLogger(*config, ctx)
 }
