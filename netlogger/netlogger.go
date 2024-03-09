@@ -126,7 +126,7 @@ func (op *NetLoggerOption) SetLevel(level Level) {
 func (op *NetLoggerOption) SetFileName(name string) {
 	if len(name) > 0 {
 		dir := filepath.Dir(name)
-		if util.IsExistPath(dir) == false {
+		if util.IsExistFile(dir) == false {
 			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 				return
 			}

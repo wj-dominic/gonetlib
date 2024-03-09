@@ -125,5 +125,5 @@ func (p *IDLParser) reset() {
 }
 
 func (p *IDLParser) isValid(filePath string) bool {
-	return util.IsExistPath(filePath)
+	return util.IsExistFile(filePath)
 }

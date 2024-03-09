@@ -18,7 +18,11 @@ func TestLogger(t *testing.T) {
 	})
 
 	_logger := config.CreateLogger(ctx)
-	_logger.Debug("debug log", logger.Why("test", 10), logger.Why("test2", "this is test"))
+
+	for i := 0; i < 10; i++ {
+		_logger.Debug("debug log", logger.Why("count", i))
+	}
 
 	cancel()
+	_logger.Close()
 }

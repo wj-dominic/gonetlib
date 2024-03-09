@@ -11,7 +11,7 @@ func GetFileNameWithoutExt(filePath string) string {
 	return strings.TrimSuffix(filename, filepath.Ext(filename))
 }
 
-func IsExistPath(path string) bool {
+func IsExistFile(path string) bool {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return false
 	}

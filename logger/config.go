@@ -2,15 +2,21 @@ package logger
 
 import (
 	"context"
+	"gonetlib/util"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
 type RollingInterval uint8
 
 const (
-	RollingIntervalDay RollingInterval = 0 + iota
-	RollingIntervalWeek
+	RollingIntervalInfinite RollingInterval = 0 + iota
+	RollingIntervalYear
 	RollingIntervalMonth
+	RollingIntervalDay
+	RollingIntervalHour
+	RollingIntervalMinute
 )
 
 type config struct {
@@ -33,6 +39,48 @@ type WriteToFile struct {
 	Filepath        string
 	RollingInterval RollingInterval
 	RollingFileSize uint32
+}
+
+func (wtf *WriteToFile) makeRollingFilepath() string {
+	filename := util.GetFileNameWithoutExt(wtf.Filepath)
+	ext := filepath.Ext(wtf.Filepath)
+	dir := filepath.Dir(wtf.Filepath)
+
+	var sb strings.Builder
+	sb.WriteString(dir)
+	sb.WriteString("/")
+	sb.WriteString(filename)
+
+	now := time.Now()
+
+	switch wtf.RollingInterval {
+	case RollingIntervalYear:
+		sb.WriteString("_")
+		sb.WriteString(now.Format("2006"))
+		break
+	case RollingIntervalMonth:
+		sb.WriteString("_")
+		sb.WriteString(now.Format("2006_01"))
+		break
+	case RollingIntervalDay:
+		sb.WriteString("_")
+		sb.WriteString(now.Format("2006_01_02"))
+		break
+	case RollingIntervalHour:
+		sb.WriteString("_")
+		sb.WriteString(now.Format("2006_01_02_15"))
+		break
+	case RollingIntervalMinute:
+		sb.WriteString("_")
+		sb.WriteString(now.Format("2006_01_02_1504"))
+		break
+	default:
+		break
+	}
+
+	sb.WriteString(ext)
+
+	return sb.String()
 }
 
 func CreateLoggerConfig() *config {
@@ -73,7 +121,7 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 		config.writeToFile.Filepath = option.Filepath
 	}
 
-	if option.RollingInterval <= RollingIntervalWeek && config.writeToFile.RollingInterval != option.RollingInterval {
+	if option.RollingInterval <= RollingIntervalMonth && config.writeToFile.RollingInterval != option.RollingInterval {
 		config.writeToFile.RollingInterval = option.RollingInterval
 	}
 
