@@ -20,23 +20,20 @@ type ILogger interface {
 var wg sync.WaitGroup
 
 type Logger struct {
-	config          config
-	logs            chan string
-	writeToFileLogs chan string
-	ctx             context.Context
+	config config
+	logs   chan Log
+	ctx    context.Context
 }
 
 func CreateLogger(config config, ctx context.Context) ILogger {
 	logger := &Logger{
-		config:          config,
-		logs:            make(chan string),
-		writeToFileLogs: make(chan string),
-		ctx:             ctx,
+		config: config,
+		logs:   make(chan Log),
+		ctx:    ctx,
 	}
 
-	wg.Add(2)
+	wg.Add(1)
 	go logger.tick()
-	go logger.writeToFile()
 
 	return logger
 }
@@ -58,7 +55,6 @@ func (logger *Logger) Close() {
 	wg.Wait()
 
 	close(logger.logs)
-	close(logger.writeToFileLogs)
 }
 
 func (logger *Logger) log(level Level, message string, fields ...Field) {
@@ -67,93 +63,67 @@ func (logger *Logger) log(level Level, message string, fields ...Field) {
 		return
 	}
 
-	//문자열 조합
-	var sb strings.Builder
-	sb.WriteString(message)
-
-	for _, field := range fields {
-		sb.WriteString("|")
-		sb.WriteString(field.ToString())
-	}
-
 	//채널에 삽입
-	logger.logs <- sb.String()
+	logger.logs <- NewLog(level, message, fields...)
 }
 
 func (logger *Logger) tick() {
-	for {
-		select {
-		case log := <-logger.logs:
-			logger.write(log)
-		case <-logger.ctx.Done():
-			fmt.Println("tick is end")
-			wg.Done()
-			return
-		}
-	}
-}
+	defer wg.Done()
 
-func (logger *Logger) write(log string) {
-	if logger.config.writeToConsole.enable == true {
-		fmt.Println(log)
-	}
-
-	if logger.config.writeToFile.enable == true {
-		logger.writeToFileLogs <- log
-	}
-}
-
-func (logger *Logger) writeToFile() {
 	var sb strings.Builder
-	ontick := time.NewTicker(logger.config.tickDuration)
+	toWriteFile := time.NewTicker(logger.config.tickDuration)
+
+out:
 	for {
 		select {
-		case <-ontick.C:
-			err := flushToFile(&logger.config.writeToFile, sb.String())
+		case log, ok := <-logger.logs:
+			if ok == false {
+				break out
+			}
+
+			//콘솔에는 즉시 출력
+			if logger.config.writeToConsole.enable == true {
+				fmt.Println(log.ToString())
+			}
+
+			//파일에는 모아서 출력
+			if logger.config.writeToFile.enable == true {
+				sb.WriteString(log.ToString())
+				sb.WriteString("\n")
+			}
+
+		case <-toWriteFile.C:
+			err := logger.flushToFile(sb.String())
 			if err != nil {
 				panic(err)
 			}
 
 			sb.Reset()
-
-		case log := <-logger.writeToFileLogs:
-			//로그 모으기
-			sb.WriteString(log)
-			sb.WriteString("\n")
 
 		case <-logger.ctx.Done():
-			if len(logger.writeToFileLogs) > 0 {
-				for log := range logger.writeToFileLogs {
-					sb.WriteString(log)
-					sb.WriteString("\n")
-				}
-			}
-
-			err := flushToFile(&logger.config.writeToFile, sb.String())
-			if err != nil {
-				panic(err)
-			}
-
-			sb.Reset()
-
-			fmt.Println("writeToFile is end")
-			wg.Done()
-			return
+			break out
 		}
 	}
-}
 
-func flushToFile(wtf *WriteToFile, text string) error {
-	if wtf == nil {
-		return fmt.Errorf("invalid object of writeToFile")
+	//종료 시점에 남은게 있으면 파일에 쓰기
+	if len(sb.String()) > 0 {
+		err := logger.flushToFile(sb.String())
+		if err != nil {
+			panic(err)
+		}
+		sb.Reset()
 	}
 
+	fmt.Println("tick is end")
+}
+
+func (logger *Logger) flushToFile(text string) error {
 	if len(text) == 0 {
 		return nil
 	}
 
 	//rolling interval 기준으로 파일 이름 구하기
-	path := wtf.makeRollingFilepath()
+	path := logger.config.writeToFile.makeRollingFilepath()
 
 	//해당 파일이 없으면 생성하기, 있으면 Append
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, os.FileMode(0644))

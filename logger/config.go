@@ -87,7 +87,7 @@ func CreateLoggerConfig() *config {
 	return &config{
 		limitLevel: DebugLevel,
 		writeToConsole: writeToConsole{
-			writeTo: writeTo{enable: false},
+			writeTo: writeTo{enable: true},
 		},
 		writeToFile: WriteToFile{
 			writeTo:         writeTo{enable: false},
