@@ -23,19 +23,27 @@ type Logger struct {
 	config config
 	logs   chan Log
 	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-func CreateLogger(config config, ctx context.Context) ILogger {
+func CreateLoggerWithContext(config config, ctx context.Context) ILogger {
+	_ctx, _cancel := context.WithCancel(ctx)
+
 	logger := &Logger{
 		config: config,
 		logs:   make(chan Log),
-		ctx:    ctx,
+		ctx:    _ctx,
+		cancel: _cancel,
 	}
 
 	wg.Add(1)
 	go logger.tick()
 
 	return logger
+}
+
+func CreateLogger(config config) ILogger {
+	return CreateLoggerWithContext(config, context.Background())
 }
 
 func (logger *Logger) Debug(message string, fields ...Field) {
@@ -52,8 +60,8 @@ func (logger *Logger) Error(message string, fields ...Field) {
 }
 
 func (logger *Logger) Close() {
+	logger.cancel()
 	wg.Wait()
-
 	close(logger.logs)
 }
 

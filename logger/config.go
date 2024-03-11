@@ -3,7 +3,9 @@ package logger
 import (
 	"context"
 	"gonetlib/util"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,13 +21,6 @@ const (
 	RollingIntervalMinute
 )
 
-type config struct {
-	limitLevel     Level
-	writeToConsole writeToConsole
-	writeToFile    WriteToFile
-	tickDuration   time.Duration
-}
-
 type writeTo struct {
 	enable bool
 }
@@ -38,7 +33,7 @@ type WriteToFile struct {
 	writeTo
 	Filepath        string
 	RollingInterval RollingInterval
-	RollingFileSize uint32
+	RollingFileSize int64
 }
 
 func (wtf *WriteToFile) makeRollingFilepath() string {
@@ -49,38 +44,111 @@ func (wtf *WriteToFile) makeRollingFilepath() string {
 	var sb strings.Builder
 	sb.WriteString(dir)
 	sb.WriteString("/")
-	sb.WriteString(filename)
 
+	var realFileName strings.Builder
+	realFileName.WriteString(filename)
+
+	//rolling interval for date
 	now := time.Now()
-
 	switch wtf.RollingInterval {
 	case RollingIntervalYear:
-		sb.WriteString("_")
-		sb.WriteString(now.Format("2006"))
+		realFileName.WriteString("_")
+		realFileName.WriteString(now.Format("2006"))
 		break
 	case RollingIntervalMonth:
-		sb.WriteString("_")
-		sb.WriteString(now.Format("2006_01"))
+		realFileName.WriteString("_")
+		realFileName.WriteString(now.Format("2006_01"))
 		break
 	case RollingIntervalDay:
-		sb.WriteString("_")
-		sb.WriteString(now.Format("2006_01_02"))
+		realFileName.WriteString("_")
+		realFileName.WriteString(now.Format("2006_01_02"))
 		break
 	case RollingIntervalHour:
-		sb.WriteString("_")
-		sb.WriteString(now.Format("2006_01_02_15"))
+		realFileName.WriteString("_")
+		realFileName.WriteString(now.Format("2006_01_02_15"))
 		break
 	case RollingIntervalMinute:
-		sb.WriteString("_")
-		sb.WriteString(now.Format("2006_01_02_1504"))
+		realFileName.WriteString("_")
+		realFileName.WriteString(now.Format("2006_01_02_1504"))
 		break
 	default:
 		break
 	}
 
+	rollingNumber := wtf.getRollingNumber(dir, realFileName.String(), ext)
+	if rollingNumber > 0 {
+		realFileName.WriteString("(")
+		realFileName.WriteString(strconv.Itoa(int(rollingNumber)))
+		realFileName.WriteString(")")
+	}
+
+	sb.WriteString(realFileName.String())
 	sb.WriteString(ext)
 
 	return sb.String()
+}
+
+func (wtf *WriteToFile) getRollingNumber(dir string, filename string, ext string) uint32 {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		panic(err)
+	}
+
+	//마지막 파일 찾기
+	lastRollingNumber := uint32(0)
+	lastFileSize := int64(0)
+	hasRollingFile := bool(false)
+	for _, entry := range entries {
+		if entry.IsDir() == true {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			panic(err)
+		}
+
+		if strings.Contains(info.Name(), filename) == false {
+			continue
+		}
+
+		if strings.Contains(info.Name(), "(") == true {
+			begin := strings.Index(info.Name(), "(")
+			end := strings.Index(info.Name(), ")")
+
+			numberStr := info.Name()[begin+1 : end]
+			number, err := strconv.Atoi(numberStr)
+			if err != nil {
+				panic(err)
+			}
+
+			if lastRollingNumber > uint32(number) {
+				continue
+			}
+
+			lastRollingNumber = uint32(number)
+			hasRollingFile = true
+			lastFileSize = info.Size()
+		}
+
+		//숫자가 없는 파일이 덮어 쓰는 것을 방지
+		if hasRollingFile == false {
+			lastFileSize = info.Size()
+		}
+	}
+
+	if lastFileSize >= wtf.RollingFileSize {
+		lastRollingNumber++
+	}
+
+	return lastRollingNumber
+}
+
+type config struct {
+	limitLevel     Level
+	writeToConsole writeToConsole
+	writeToFile    WriteToFile
+	tickDuration   time.Duration
 }
 
 func CreateLoggerConfig() *config {
@@ -132,6 +200,10 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 	return config
 }
 
-func (config *config) CreateLogger(ctx context.Context) ILogger {
-	return CreateLogger(*config, ctx)
+func (config *config) CreateLoggerWithContext(ctx context.Context) ILogger {
+	return CreateLoggerWithContext(*config, ctx)
+}
+
+func (config *config) CreateLogger() ILogger {
+	return CreateLogger(*config)
 }
