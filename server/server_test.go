@@ -26,13 +26,24 @@ func (h *EchoServerHandler) OnDisconnect() {
 }
 
 func TestMain(m *testing.T) {
+	config := logger.CreateLoggerConfig().
+		WriteToConsole().
+		WriteToFile(
+			logger.WriteToFile{
+				Filepath:        "./EchoServer.log",
+				RollingInterval: logger.RollingIntervalDay,
+			}).
+		MinimumLevel(logger.DebugLevel).
+		TickDuration(1000)
+	_logger := config.CreateLogger()
+
 	builder := server.CreateServerBuilder()
 	builder.Configuration(server.ServerConfig{
 		Address:    server.Endpoint{IP: "0.0.0.0", Port: 50000},
 		Protocols:  server.TCP | server.UDP,
 		MaxSession: 10000,
 	})
-	builder.Logger(&logger.Logger{})
+	builder.Logger(_logger)
 	builder.Handler(&EchoServerHandler{})
 
 	server := builder.Build()

@@ -14,7 +14,7 @@ type ILogger interface {
 	Info(message string, fields ...Field)
 	Warn(message string, fields ...Field)
 	Error(message string, fields ...Field)
-	Close()
+	Dispose()
 }
 
 var wg sync.WaitGroup
@@ -59,7 +59,7 @@ func (logger *Logger) Error(message string, fields ...Field) {
 	logger.log(ErrorLevel, message, fields...)
 }
 
-func (logger *Logger) Close() {
+func (logger *Logger) Dispose() {
 	logger.cancel()
 	wg.Wait()
 	close(logger.logs)

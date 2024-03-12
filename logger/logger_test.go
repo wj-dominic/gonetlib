@@ -28,7 +28,7 @@ func TestLogger(t *testing.T) {
 		_logger.Info("hello log", logger.Why("count", i), logger.Why("test", "is test"))
 	}
 
-	_logger.Close()
+	_logger.Dispose()
 }
 
 func TestLoggerWithContext(t *testing.T) {
@@ -40,7 +40,6 @@ func TestLoggerWithContext(t *testing.T) {
 	config.WriteToFile(logger.WriteToFile{
 		Filepath:        "other_log.txt",
 		RollingInterval: logger.RollingIntervalDay,
-		RollingFileSize: 100,
 	})
 
 	_logger := config.CreateLoggerWithContext(ctx)
@@ -55,6 +54,8 @@ func TestLoggerWithContext(t *testing.T) {
 		_logger.Info("hello log", logger.Why("count", i), logger.Why("test", "is test"))
 	}
 
-	//TODO:외부에서 캔슬하면 로거는 어떻게 Wait???
 	cancel()
+
+	//wait를 위해 명시적으로 호출, 암시적으로 기다리게 할 수 있는 방법은 없을까?
+	_logger.Dispose()
 }

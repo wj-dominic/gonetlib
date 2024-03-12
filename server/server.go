@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"gonetlib/logger"
 	"net"
 )
@@ -40,8 +39,7 @@ type Server struct {
 
 func (s *Server) Run() bool {
 	if s.acceptor.StartAccept() == false {
-		s.logger.Error("")
-		fmt.Print()
+		s.logger.Error("Failed to start accept", logger.Why("address", s.config.Address.ToString()))
 		return false
 	}
 
@@ -50,12 +48,16 @@ func (s *Server) Run() bool {
 
 func (s *Server) Stop() bool {
 	s.cancel()
+	s.logger.Dispose()
 	return true
 }
 
 func (s *Server) OnAccept(conn net.Conn) {
 	session := s.sessions.NewSession(s.ctx, conn)
 	if session == nil {
+		s.logger.Error("Failed to create new session",
+			logger.Why("local address", conn.LocalAddr().String()),
+			logger.Why("remote", conn.RemoteAddr().String()))
 		return
 	}
 
