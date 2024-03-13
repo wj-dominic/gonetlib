@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	DELIM string = "|"
+	DELIM string = "||"
 )
 
 type Log struct {
@@ -29,13 +29,13 @@ func NewLog(level Level, message string, fields ...Field) Log {
 func (log *Log) ToString() string {
 	var sb strings.Builder
 	sb.WriteString(log.time)
-	sb.WriteString("|")
+	sb.WriteString(DELIM)
 	sb.WriteString(log.level.ToString())
-	sb.WriteString("|")
+	sb.WriteString(DELIM)
 	sb.WriteString(log.message)
 
 	for _, field := range log.fields {
-		sb.WriteString("|")
+		sb.WriteString(DELIM)
 		sb.WriteString(field.ToString())
 	}
 

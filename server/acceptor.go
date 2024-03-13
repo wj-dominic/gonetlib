@@ -14,7 +14,7 @@ type IAcceptHandler interface {
 type IAcceptor interface {
 	StartAccept() bool
 	StopAccept()
-	SetHandler(IAcceptHandler)
+	SetHandler(handler IAcceptHandler)
 }
 
 const (

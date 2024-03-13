@@ -26,6 +26,7 @@ func (h *EchoServerHandler) OnDisconnect() {
 }
 
 func TestMain(m *testing.T) {
+
 	config := logger.CreateLoggerConfig().
 		WriteToConsole().
 		WriteToFile(

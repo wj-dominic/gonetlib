@@ -47,19 +47,6 @@ func (builder *serverBuilder) Handler(handler IServerHandler) IServerBuilder {
 
 func (builder *serverBuilder) Build() IServer {
 	//context 생성
-	ctx, cancel := context.WithCancel(context.Background())
-
-	//서버 생성
-	server := &Server{
-		config:   builder.config,
-		acceptor: CreateAcceptor(ctx, builder.config.Protocols, builder.config.Address),
-		sessions: CreateSessionManager(ctx, builder.config.MaxSession),
-		ctx:      ctx,
-		cancel:   cancel,
-	}
-
-	//서버 핸들러 적용
-	server.acceptor.SetHandler(server)
-
+	server := newServerWithContext(builder.config, context.Background())
 	return server
 }

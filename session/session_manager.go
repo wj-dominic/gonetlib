@@ -1,11 +1,14 @@
-package server
+package session
 
 import (
 	"context"
-	"gonetlib/session"
 	"net"
 	"sync"
 )
+
+type ISessionManager interface {
+	NewSession(net.Conn) ISession
+}
 
 type SessionManager struct {
 	ctx  context.Context
@@ -17,12 +20,12 @@ func CreateSessionManager(ctx context.Context, limit uint32) *SessionManager {
 		ctx: ctx,
 		pool: sync.Pool{
 			New: func() interface{} {
-				return session.NewSession()
+				return NewSession()
 			},
 		},
 	}
 }
 
-func (s *SessionManager) NewSession(context.Context, net.Conn) ISession {
-	return session.NewSession()
+func (s *SessionManager) NewSession(net.Conn) ISession {
+	return s.pool.Get().(ISession)
 }

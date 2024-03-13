@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"gonetlib/logger"
+	"gonetlib/session"
+
 	"net"
 )
 
@@ -18,23 +20,34 @@ type IServer interface {
 	Stop() bool
 }
 
-type ISession interface {
-	Start()
-}
-
-type ISessionManager interface {
-	NewSession(context.Context, net.Conn) ISession
-}
-
 type Server struct {
 	config   ServerConfig
 	acceptor IAcceptor
-	sessions ISessionManager
+	sessions session.ISessionManager
 	handler  IServerHandler
 	logger   logger.ILogger
 
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+func newServerWithContext(config ServerConfig, ctx context.Context) IServer {
+	_ctx, cancel := context.WithCancel(ctx)
+	server := &Server{
+		config:   config,
+		acceptor: CreateAcceptor(ctx, config.Protocols, config.Address),
+		sessions: session.CreateSessionManager(ctx, config.MaxSession),
+		ctx:      _ctx,
+		cancel:   cancel,
+	}
+
+	server.acceptor.SetHandler(server)
+
+	return server
+}
+
+func newServer(config ServerConfig) IServer {
+	return newServerWithContext(config, context.Background())
 }
 
 func (s *Server) Run() bool {
@@ -53,11 +66,12 @@ func (s *Server) Stop() bool {
 }
 
 func (s *Server) OnAccept(conn net.Conn) {
-	session := s.sessions.NewSession(s.ctx, conn)
+	session := s.sessions.NewSession(conn)
 	if session == nil {
 		s.logger.Error("Failed to create new session",
 			logger.Why("local address", conn.LocalAddr().String()),
 			logger.Why("remote", conn.RemoteAddr().String()))
+		conn.Close()
 		return
 	}
 
