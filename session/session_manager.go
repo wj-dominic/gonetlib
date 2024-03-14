@@ -7,7 +7,7 @@ import (
 )
 
 type ISessionManager interface {
-	NewSession(net.Conn) ISession
+	NewSession(uint64, net.Conn, ISessionHandler) ISession
 }
 
 type SessionManager struct {
@@ -20,12 +20,18 @@ func CreateSessionManager(ctx context.Context, limit uint32) *SessionManager {
 		ctx: ctx,
 		pool: sync.Pool{
 			New: func() interface{} {
-				return NewSession()
+				return newTcpSession()
 			},
 		},
 	}
 }
 
-func (s *SessionManager) NewSession(net.Conn) ISession {
-	return s.pool.Get().(ISession)
+func (s *SessionManager) NewSession(id uint64, conn net.Conn, handler ISessionHandler) ISession {
+	session := s.pool.Get().(ISession)
+	if session == nil {
+		return nil
+	}
+
+	session.Setup(id, conn, handler)
+	return session
 }

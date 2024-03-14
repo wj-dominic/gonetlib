@@ -1,10 +1,14 @@
 package session
 
-import "gonetlib/message"
+import (
+	"gonetlib/message"
+	"net"
+)
 
 type ISession interface {
-	Start()
-	Stop()
+	Start() bool
+	Stop() bool
+	Setup(uint64, net.Conn, ISessionHandler)
 	GetID() uint64
 }
 
@@ -16,17 +20,18 @@ type ISessionHandler interface {
 }
 
 type Session struct {
-	config SessionConfig
+	id       uint64
+	conn     net.Conn
+	handler  ISessionHandler
+	refCount int32
 }
 
-func (session *Session) Start() {
-
-}
-
-func (session *Session) Stop() {
-
+func (session *Session) Setup(id uint64, conn net.Conn, handler ISessionHandler) {
+	session.id = id
+	session.conn = conn
+	session.handler = handler
 }
 
 func (session *Session) GetID() uint64 {
-	return session.config.id
+	return session.id
 }

@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"gonetlib/logger"
+	"gonetlib/message"
 	"gonetlib/server"
 	"testing"
 )
@@ -13,11 +14,11 @@ func (h *EchoServerHandler) OnConnect() {
 
 }
 
-func (h *EchoServerHandler) OnRecv(recvData []byte) {
+func (h *EchoServerHandler) OnRecv(packet *message.Message) {
 
 }
 
-func (h *EchoServerHandler) OnSend(sendBytes uint32) {
+func (h *EchoServerHandler) OnSend(sendBytes []byte) {
 
 }
 
@@ -26,7 +27,6 @@ func (h *EchoServerHandler) OnDisconnect() {
 }
 
 func TestMain(m *testing.T) {
-
 	config := logger.CreateLoggerConfig().
 		WriteToConsole().
 		WriteToFile(
@@ -39,7 +39,8 @@ func TestMain(m *testing.T) {
 	_logger := config.CreateLogger()
 
 	builder := server.CreateServerBuilder()
-	builder.Configuration(server.ServerConfig{
+	builder.Configuration(server.ServerInfo{
+		Id:         1,
 		Address:    server.Endpoint{IP: "0.0.0.0", Port: 50000},
 		Protocols:  server.TCP | server.UDP,
 		MaxSession: 10000,
@@ -49,4 +50,8 @@ func TestMain(m *testing.T) {
 
 	server := builder.Build()
 	server.Run()
+}
+
+func TestSessionId(t *testing.T) {
+
 }

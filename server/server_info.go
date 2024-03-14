@@ -7,7 +7,8 @@ const (
 	UDP
 )
 
-type ServerConfig struct {
+type ServerInfo struct {
+	Id        uint16
 	Address   Endpoint
 	Protocols Protocol
 

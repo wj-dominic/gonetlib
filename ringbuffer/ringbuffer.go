@@ -29,7 +29,7 @@ func NewRingBuffer(isLittleEndian bool, size ...uint32) *RingBuffer {
 		bufferSize = size[0]
 	}
 
-	ring := RingBuffer{
+	ring := &RingBuffer{
 		buffer: make([]byte, bufferSize),
 
 		front: 0,
@@ -43,7 +43,7 @@ func NewRingBuffer(isLittleEndian bool, size ...uint32) *RingBuffer {
 		ring.order = binary.BigEndian
 	}
 
-	return &ring
+	return ring
 }
 
 func (ring *RingBuffer) Clear() {

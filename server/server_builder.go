@@ -6,21 +6,21 @@ import (
 )
 
 type IServerBuilder interface {
-	Configuration(ServerConfig) IServerBuilder
+	Configuration(ServerInfo) IServerBuilder
 	Logger(logger.ILogger) IServerBuilder
 	Handler(IServerHandler) IServerBuilder
 	Build() IServer
 }
 
 type serverBuilder struct {
-	config  ServerConfig
+	config  ServerInfo
 	handler IServerHandler
 	logger  logger.ILogger
 }
 
 func CreateServerBuilder() IServerBuilder {
 	return &serverBuilder{
-		config: ServerConfig{
+		config: ServerInfo{
 			Address:    Endpoint{IP: "0.0.0.0", Port: 50000},
 			MaxSession: 100,
 			Protocols:  TCP,
@@ -28,7 +28,7 @@ func CreateServerBuilder() IServerBuilder {
 	}
 }
 
-func (builder *serverBuilder) Configuration(config ServerConfig) IServerBuilder {
+func (builder *serverBuilder) Configuration(config ServerInfo) IServerBuilder {
 	builder.config.Address = config.Address
 	builder.config.MaxSession = config.MaxSession
 	builder.config.Protocols = config.Protocols

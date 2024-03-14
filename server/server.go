@@ -3,15 +3,17 @@ package server
 import (
 	"context"
 	"gonetlib/logger"
+	"gonetlib/message"
 	"gonetlib/session"
+	"time"
 
 	"net"
 )
 
 type IServerHandler interface {
 	OnConnect()
-	OnRecv([]byte)
-	OnSend(uint32)
+	OnRecv(packet *message.Message)
+	OnSend(sendBytes []byte)
 	OnDisconnect()
 }
 
@@ -21,7 +23,7 @@ type IServer interface {
 }
 
 type Server struct {
-	config   ServerConfig
+	info     ServerInfo
 	acceptor IAcceptor
 	sessions session.ISessionManager
 	handler  IServerHandler
@@ -31,12 +33,12 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
-func newServerWithContext(config ServerConfig, ctx context.Context) IServer {
+func newServerWithContext(info ServerInfo, ctx context.Context) IServer {
 	_ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
-		config:   config,
-		acceptor: CreateAcceptor(ctx, config.Protocols, config.Address),
-		sessions: session.CreateSessionManager(ctx, config.MaxSession),
+		info:     info,
+		acceptor: CreateAcceptor(ctx, info.Protocols, info.Address),
+		sessions: session.CreateSessionManager(ctx, info.MaxSession),
 		ctx:      _ctx,
 		cancel:   cancel,
 	}
@@ -46,13 +48,13 @@ func newServerWithContext(config ServerConfig, ctx context.Context) IServer {
 	return server
 }
 
-func newServer(config ServerConfig) IServer {
+func newServer(config ServerInfo) IServer {
 	return newServerWithContext(config, context.Background())
 }
 
 func (s *Server) Run() bool {
 	if s.acceptor.StartAccept() == false {
-		s.logger.Error("Failed to start accept", logger.Why("address", s.config.Address.ToString()))
+		s.logger.Error("Failed to start accept", logger.Why("address", s.info.Address.ToString()))
 		return false
 	}
 
@@ -66,7 +68,7 @@ func (s *Server) Stop() bool {
 }
 
 func (s *Server) OnAccept(conn net.Conn) {
-	session := s.sessions.NewSession(conn)
+	session := s.sessions.NewSession(s.makeSessionId(), conn, s.handler)
 	if session == nil {
 		s.logger.Error("Failed to create new session",
 			logger.Why("local address", conn.LocalAddr().String()),
@@ -77,6 +79,16 @@ func (s *Server) OnAccept(conn net.Conn) {
 
 	session.Start()
 	//TODO : start 이후 핸들러 등록
+}
+
+func (s *Server) makeSessionId() uint64 {
+	var sessionId uint64
+
+	now := time.Now()
+	sessionId = sessionId | uint64(s.info.Id)<<32
+	sessionId = uint64(uint32(sessionId) | uint32(now.Unix()))
+
+	return sessionId
 }
 
 func (s *Server) OnRecvFrom(client net.Addr, recvData []byte, recvBytes uint32) {
