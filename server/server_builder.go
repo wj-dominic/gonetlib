@@ -46,7 +46,6 @@ func (builder *serverBuilder) Handler(handler IServerHandler) IServerBuilder {
 }
 
 func (builder *serverBuilder) Build() IServer {
-	//context 생성
-	server := newServerWithContext(builder.config, context.Background())
+	server := newServerWithContext(builder.logger, builder.config, builder.handler, context.Background())
 	return server
 }

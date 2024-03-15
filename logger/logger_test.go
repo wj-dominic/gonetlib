@@ -54,8 +54,28 @@ func TestLoggerWithContext(t *testing.T) {
 		_logger.Info("hello log", logger.Why("count", i), logger.Why("test", "is test"))
 	}
 
+	time.Sleep(time.Second)
+
+	for i := 0; i < 100; i++ {
+		_logger.Info("hello 2 log")
+	}
+
 	cancel()
 
 	//wait를 위해 명시적으로 호출, 암시적으로 기다리게 할 수 있는 방법은 없을까?
 	_logger.Dispose()
+}
+
+func TestDefaultLogger(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		logger.Debug("debug log", logger.Why("count", i))
+	}
+
+	time.Sleep(time.Second)
+
+	for i := 0; i < 100; i++ {
+		logger.Info("hello log", logger.Why("count", i), logger.Why("test", "is test"))
+	}
+
+	logger.Dispose()
 }

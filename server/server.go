@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"gonetlib/logger"
-	"gonetlib/message"
 	"gonetlib/session"
 	"time"
 
@@ -11,10 +10,9 @@ import (
 )
 
 type IServerHandler interface {
-	OnConnect()
-	OnRecv(packet *message.Message)
-	OnSend(sendBytes []byte)
-	OnDisconnect()
+	OnRun() error
+	OnStop() error
+	session.ISessionHandler
 }
 
 type IServer interface {
@@ -33,14 +31,17 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
-func newServerWithContext(info ServerInfo, ctx context.Context) IServer {
+func newServerWithContext(logger logger.ILogger, info ServerInfo, handler IServerHandler, ctx context.Context) IServer {
 	_ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		info:     info,
-		acceptor: CreateAcceptor(ctx, info.Protocols, info.Address),
-		sessions: session.CreateSessionManager(ctx, info.MaxSession),
-		ctx:      _ctx,
-		cancel:   cancel,
+		acceptor: CreateAcceptor(logger, info.Protocols, info.Address, ctx),
+		sessions: session.CreateSessionManager(logger, info.MaxSession, ctx),
+		handler:  handler,
+		logger:   logger,
+
+		ctx:    _ctx,
+		cancel: cancel,
 	}
 
 	server.acceptor.SetHandler(server)
@@ -48,22 +49,43 @@ func newServerWithContext(info ServerInfo, ctx context.Context) IServer {
 	return server
 }
 
-func newServer(config ServerInfo) IServer {
-	return newServerWithContext(config, context.Background())
+func newServer(logger logger.ILogger, info ServerInfo, handler IServerHandler) IServer {
+	return newServerWithContext(logger, info, handler, context.Background())
 }
 
 func (s *Server) Run() bool {
-	if s.acceptor.StartAccept() == false {
-		s.logger.Error("Failed to start accept", logger.Why("address", s.info.Address.ToString()))
+	if err := s.acceptor.Start(); err != nil {
+		s.logger.Error("Failed to start accept",
+			logger.Why("address", s.info.Address.ToString()),
+			logger.Why("error", err.Error()))
 		return false
 	}
 
+	if s.handler != nil {
+		if err := s.handler.OnRun(); err != nil {
+			s.logger.Error("Failed to call on run handler", logger.Why("error", err.Error()))
+			return false
+		}
+	}
+
+	s.logger.Info("Success to run server")
 	return true
 }
 
 func (s *Server) Stop() bool {
+	if err := s.handler.OnStop(); err != nil {
+		s.logger.Error("Failed to call on stop handler", logger.Why("error", err.Error()))
+		return false
+	}
+
+	//기능 중단
 	s.cancel()
+
+	//종료 대기
+	s.acceptor.Stop()
 	s.logger.Dispose()
+
+	s.logger.Info("Success to stop server")
 	return true
 }
 
@@ -73,12 +95,19 @@ func (s *Server) OnAccept(conn net.Conn) {
 		s.logger.Error("Failed to create new session",
 			logger.Why("local address", conn.LocalAddr().String()),
 			logger.Why("remote", conn.RemoteAddr().String()))
+
 		conn.Close()
 		return
 	}
 
-	session.Start()
-	//TODO : start 이후 핸들러 등록
+	if err := session.Start(); err != nil {
+		s.logger.Error("Failed to start a session",
+			logger.Why("session id", session.GetID()),
+			logger.Why("internal", err.Error()))
+
+		conn.Close()
+		return
+	}
 }
 
 func (s *Server) makeSessionId() uint64 {

@@ -17,13 +17,12 @@ type ILogger interface {
 	Dispose()
 }
 
-var wg sync.WaitGroup
-
 type Logger struct {
 	config config
 	logs   chan Log
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 func CreateLoggerWithContext(config config, ctx context.Context) ILogger {
@@ -36,7 +35,7 @@ func CreateLoggerWithContext(config config, ctx context.Context) ILogger {
 		cancel: _cancel,
 	}
 
-	wg.Add(1)
+	logger.wg.Add(1)
 	go logger.tick()
 
 	return logger
@@ -61,7 +60,7 @@ func (logger *Logger) Error(message string, fields ...Field) {
 
 func (logger *Logger) Dispose() {
 	logger.cancel()
-	wg.Wait()
+	logger.wg.Wait()
 	close(logger.logs)
 }
 
@@ -76,7 +75,7 @@ func (logger *Logger) log(level Level, message string, fields ...Field) {
 }
 
 func (logger *Logger) tick() {
-	defer wg.Done()
+	defer logger.wg.Done()
 
 	var sb strings.Builder
 	toWriteFile := time.NewTicker(logger.config.tickDuration)
@@ -144,4 +143,33 @@ func (logger *Logger) flushToFile(text string) error {
 	file.Close()
 
 	return nil
+}
+
+var _logger ILogger = CreateLoggerConfig().
+	MinimumLevel(DebugLevel).
+	WriteToConsole().
+	WriteToFile(WriteToFile{
+		Filepath:        "log.txt",
+		RollingInterval: RollingIntervalDay,
+	}).
+	CreateLogger()
+
+func Debug(message string, fields ...Field) {
+	_logger.Debug(message, fields...)
+}
+
+func Info(message string, fields ...Field) {
+	_logger.Info(message, fields...)
+}
+
+func Warn(message string, fields ...Field) {
+	_logger.Warn(message, fields...)
+}
+
+func Error(message string, fields ...Field) {
+	_logger.Error(message, fields...)
+}
+
+func Dispose() {
+	_logger.Dispose()
 }

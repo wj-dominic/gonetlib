@@ -7,23 +7,35 @@ import (
 	"testing"
 )
 
-type EchoServerHandler struct {
+type EchoServer struct {
 }
 
-func (h *EchoServerHandler) OnConnect() {
-
+func (s *EchoServer) OnRun() error {
+	return nil
 }
 
-func (h *EchoServerHandler) OnRecv(packet *message.Message) {
-
+func (s *EchoServer) OnStop() error {
+	return nil
 }
 
-func (h *EchoServerHandler) OnSend(sendBytes []byte) {
-
+type EchoSession struct {
+	EchoServer
 }
 
-func (h *EchoServerHandler) OnDisconnect() {
+func (h *EchoSession) OnConnect() error {
+	return nil
+}
 
+func (h *EchoSession) OnRecv(packet *message.Message) error {
+	return nil
+}
+
+func (h *EchoSession) OnSend(sendBytes []byte) error {
+	return nil
+}
+
+func (h *EchoSession) OnDisconnect() error {
+	return nil
 }
 
 func TestMain(m *testing.T) {
@@ -46,10 +58,11 @@ func TestMain(m *testing.T) {
 		MaxSession: 10000,
 	})
 	builder.Logger(_logger)
-	builder.Handler(&EchoServerHandler{})
+	builder.Handler(&EchoSession{})
 
 	server := builder.Build()
 	server.Run()
+	server.Stop()
 }
 
 func TestSessionId(t *testing.T) {

@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"gonetlib/logger"
 	"net"
 	"sync"
 )
@@ -15,12 +16,12 @@ type SessionManager struct {
 	pool sync.Pool
 }
 
-func CreateSessionManager(ctx context.Context, limit uint32) *SessionManager {
+func CreateSessionManager(logger logger.ILogger, limit uint32, ctx context.Context) *SessionManager {
 	return &SessionManager{
 		ctx: ctx,
 		pool: sync.Pool{
 			New: func() interface{} {
-				return newTcpSession()
+				return newTcpSession(logger, ctx)
 			},
 		},
 	}
