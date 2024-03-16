@@ -3,14 +3,13 @@ package server
 type Protocol byte
 
 const (
-	TCP Protocol = iota + 1
-	UDP
+	TCP Protocol = 1
+	UDP          = iota << 1
 )
 
 type ServerInfo struct {
-	Id        uint16
-	Address   Endpoint
-	Protocols Protocol
-
+	Id         uint16
+	Address    Endpoint
+	Protocols  Protocol
 	MaxSession uint32
 }

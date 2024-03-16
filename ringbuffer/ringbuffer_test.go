@@ -2,7 +2,9 @@ package ringbuffer
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 )
 
 const (
@@ -59,7 +61,7 @@ func TestRingbuffer(t *testing.T) {
 
 //*/
 
-/*
+// *
 func TestInfiniteTest(t *testing.T) {
 	//무한 링버퍼 삽입 추출 테스트
 	ringBuffer := NewRingBuffer(true, 200)
@@ -95,9 +97,8 @@ func TestInfiniteTest(t *testing.T) {
 
 		fmt.Print(text)
 
-		time.Sleep(5)
+		time.Sleep(time.Second * 5)
 	}
-
 }
 
 //*/

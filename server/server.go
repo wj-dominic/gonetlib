@@ -35,7 +35,7 @@ func newServerWithContext(logger logger.ILogger, info ServerInfo, handler IServe
 	_ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		info:     info,
-		acceptor: CreateAcceptor(logger, info.Protocols, info.Address, ctx),
+		acceptor: nil,
 		sessions: session.CreateSessionManager(logger, info.MaxSession, ctx),
 		handler:  handler,
 		logger:   logger,
@@ -44,7 +44,8 @@ func newServerWithContext(logger logger.ILogger, info ServerInfo, handler IServe
 		cancel: cancel,
 	}
 
-	server.acceptor.SetHandler(server)
+	acceptor := CreateAcceptor(logger, info.Protocols, info.Address, server, ctx)
+	server.acceptor = acceptor
 
 	return server
 }
@@ -111,11 +112,13 @@ func (s *Server) OnAccept(conn net.Conn) {
 }
 
 func (s *Server) makeSessionId() uint64 {
+	//TODO:snowflake util 만들어서 이거 호출하게 하기
+
 	var sessionId uint64
 
 	now := time.Now()
-	sessionId = sessionId | uint64(s.info.Id)<<32
-	sessionId = uint64(uint32(sessionId) | uint32(now.Unix()))
+	sessionId = uint64(s.info.Id) << 32
+	sessionId |= uint64(uint32(now.Unix()))
 
 	return sessionId
 }

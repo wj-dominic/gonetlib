@@ -27,12 +27,24 @@ func CreateSessionManager(logger logger.ILogger, limit uint32, ctx context.Conte
 	}
 }
 
+//TODO: session 관리자 만들기
+
+//TODO: session stop만들기
+
 func (s *SessionManager) NewSession(id uint64, conn net.Conn, handler ISessionHandler) ISession {
 	session := s.pool.Get().(ISession)
 	if session == nil {
 		return nil
 	}
 
-	session.Setup(id, conn, handler)
+	session.Setup(id, conn, handler, s)
 	return session
+}
+
+func (s *SessionManager) OnRelease(session ISession) {
+	if session == nil {
+		return
+	}
+
+	s.pool.Put(session)
 }

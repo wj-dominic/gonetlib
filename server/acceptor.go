@@ -15,63 +15,71 @@ type IAcceptHandler interface {
 type IAcceptor interface {
 	Start() error
 	Stop()
-	SetHandler(handler IAcceptHandler)
-	Dispose()
 }
 
 const (
-	MAX_BUFFER uint32 = 4096
+	MAX_BUFFER uint32 = 66535
 )
 
 type Acceptor struct {
+	logger     logger.ILogger
+	listener   net.Listener
+	packetConn net.PacketConn
+
 	protocols    Protocol
 	endpoint     Endpoint
 	listenConfig net.ListenConfig
 	handler      IAcceptHandler
 
-	logger logger.ILogger
-	ctx    context.Context
-	wg     sync.WaitGroup
+	ctx context.Context
+	wg  sync.WaitGroup
 }
 
-func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint, ctx context.Context) IAcceptor {
+func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint, handler IAcceptHandler, ctx context.Context) IAcceptor {
 	return &Acceptor{
-		ctx:       ctx,
-		protocols: protocols,
-		endpoint:  endpoint,
-		logger:    logger,
+		logger:     logger,
+		listener:   nil,
+		packetConn: nil,
+
+		protocols:    protocols,
+		endpoint:     endpoint,
+		listenConfig: net.ListenConfig{},
+		handler:      handler,
+
+		ctx: ctx,
+		wg:  sync.WaitGroup{},
 	}
 }
 
-func (a *Acceptor) SetHandler(handler IAcceptHandler) {
-	a.handler = handler
-}
-
 func (a *Acceptor) Start() error {
-	if (a.protocols & TCP) == 1 {
+	if (a.protocols & TCP) == TCP {
 		listener, err := a.listenConfig.Listen(a.ctx, "tcp", a.endpoint.ToString())
 		if err != nil {
 			return err
 		}
 
+		a.listener = listener
+
 		a.wg.Add(1)
-		go a.waitForTCPConn(listener)
+		go a.waitForTCPConn()
 	}
 
-	if (a.protocols & UDP) == 1 {
+	if (a.protocols & UDP) == UDP {
 		conn, err := a.listenConfig.ListenPacket(a.ctx, "udp", a.endpoint.ToString())
 		if err != nil {
 			return err
 		}
 
+		a.packetConn = conn
+
 		a.wg.Add(1)
-		go a.waitForUDPConn(conn)
+		go a.waitForUDPConn()
 	}
 
 	return nil
 }
 
-func (a *Acceptor) waitForTCPConn(listener net.Listener) {
+func (a *Acceptor) waitForTCPConn() {
 	defer a.wg.Done()
 
 	for {
@@ -79,7 +87,7 @@ func (a *Acceptor) waitForTCPConn(listener net.Listener) {
 		case <-a.ctx.Done():
 			return
 		default:
-			conn, err := listener.Accept()
+			conn, err := a.listener.Accept()
 			if err != nil {
 				a.logger.Error("Failed to accept for tcp connection", logger.Why("error", err.Error()))
 				return
@@ -90,7 +98,7 @@ func (a *Acceptor) waitForTCPConn(listener net.Listener) {
 	}
 }
 
-func (a *Acceptor) waitForUDPConn(conn net.PacketConn) {
+func (a *Acceptor) waitForUDPConn() {
 	defer a.wg.Done()
 
 	for {
@@ -99,7 +107,7 @@ func (a *Acceptor) waitForUDPConn(conn net.PacketConn) {
 			return
 		default:
 			buffer := make([]byte, MAX_BUFFER)
-			recvBytes, addr, err := conn.ReadFrom(buffer)
+			recvBytes, addr, err := a.packetConn.ReadFrom(buffer)
 			if err != nil {
 				a.logger.Error("Failed to read from buffer", logger.Why("error", err.Error()))
 				return
@@ -125,9 +133,14 @@ func (a *Acceptor) onRecvFrom(client net.Addr, recvData []byte, recvBytes uint32
 func (a *Acceptor) Stop() {
 	_, cancel := context.WithCancel(a.ctx)
 	cancel()
-	a.Dispose()
-}
 
-func (a *Acceptor) Dispose() {
+	if a.listener != nil {
+		a.listener.Close()
+	}
+
+	if a.packetConn != nil {
+		a.packetConn.Close()
+	}
+
 	a.wg.Wait()
 }

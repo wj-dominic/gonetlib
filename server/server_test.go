@@ -38,7 +38,7 @@ func (h *EchoSession) OnDisconnect() error {
 	return nil
 }
 
-func TestMain(m *testing.T) {
+func TestSever(t *testing.T) {
 	config := logger.CreateLoggerConfig().
 		WriteToConsole().
 		WriteToFile(

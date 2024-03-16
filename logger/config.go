@@ -75,7 +75,7 @@ func (wtf *WriteToFile) makeRollingFilepath() string {
 		break
 	}
 
-	rollingNumber := wtf.getRollingNumber(dir, realFileName.String(), ext)
+	rollingNumber := wtf.getRollingNumber(dir, realFileName.String())
 	if rollingNumber > 0 {
 		realFileName.WriteString("(")
 		realFileName.WriteString(strconv.Itoa(int(rollingNumber)))
@@ -88,7 +88,7 @@ func (wtf *WriteToFile) makeRollingFilepath() string {
 	return sb.String()
 }
 
-func (wtf *WriteToFile) getRollingNumber(dir string, filename string, ext string) uint32 {
+func (wtf *WriteToFile) getRollingNumber(dir string, filename string) uint32 {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		panic(err)
