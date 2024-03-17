@@ -64,7 +64,3 @@ func TestSever(t *testing.T) {
 	server.Run()
 	server.Stop()
 }
-
-func TestSessionId(t *testing.T) {
-
-}

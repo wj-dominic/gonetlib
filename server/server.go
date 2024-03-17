@@ -4,7 +4,7 @@ import (
 	"context"
 	"gonetlib/logger"
 	"gonetlib/session"
-	"time"
+	"gonetlib/util/snowflake"
 
 	"net"
 )
@@ -112,15 +112,7 @@ func (s *Server) OnAccept(conn net.Conn) {
 }
 
 func (s *Server) makeSessionId() uint64 {
-	//TODO:snowflake util 만들어서 이거 호출하게 하기
-
-	var sessionId uint64
-
-	now := time.Now()
-	sessionId = uint64(s.info.Id) << 32
-	sessionId |= uint64(uint32(now.Unix()))
-
-	return sessionId
+	return snowflake.GenerateID(int64(s.info.Id))
 }
 
 func (s *Server) OnRecvFrom(client net.Addr, recvData []byte, recvBytes uint32) {
