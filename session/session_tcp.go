@@ -25,7 +25,7 @@ func newTcpSession(logger logger.ILogger, ctx context.Context) ISession {
 	return &TCPSession{
 		Session:     newSession(logger, ctx),
 		recvBuffer:  ringbuffer.NewRingBuffer(true),
-		sendChannel: make(chan []byte),
+		sendChannel: make(chan []byte, 100),
 	}
 }
 
@@ -36,20 +36,30 @@ func (session *TCPSession) Start() error {
 		}
 	}()
 
-	session.acquire()
+	if session.acquire(true) == false {
+		return fmt.Errorf("failed to acquire session for start, id[%d]", session.id)
+	}
+
+	session.logger.Debug("Start session", logger.Why("id", session.GetID()))
+
 	if session.conn == nil {
 		return fmt.Errorf("connection is nil")
 	}
 
+	session.wg.Add(2)
+	if session.acquire() == true {
+		go session.readAsync()
+	}
+
+	if session.acquire() == true {
+		go session.sendAsync()
+	}
+
 	if session.handler != nil {
-		if err := session.handler.OnConnect(); err != nil {
+		if err := session.handler.OnConnect(session); err != nil {
 			session.logger.Error("Failed to connect ")
 		}
 	}
-
-	session.wg.Add(2)
-	go session.readAsync()
-	go session.sendAsync()
 
 	return nil
 }
@@ -62,23 +72,25 @@ func (session *TCPSession) readAsync() {
 		}
 	}()
 
-	session.acquire()
+	session.logger.Debug("Begin read async", logger.Why("id", session.GetID()))
+
 	for {
 		//빈 버퍼 획득
 		buffer := session.recvBuffer.GetRearBuffer()
 		if buffer == nil {
 			session.logger.Error("Failed to get for read buffer")
-			return
+			break
 		}
 
 		recvBytes, err := session.conn.Read(buffer)
 		if err != nil {
-			return
+			session.logger.Error("Failed to read", logger.Why("error", err.Error()), logger.Why("id", session.GetID()))
+			break
 		}
 
 		if session.recvBuffer.MoveRear(uint32(recvBytes)) == false {
 			session.logger.Error("Failed to move receive buffer", logger.Why("recvBytes", recvBytes))
-			return
+			break
 		}
 
 		packet := message.NewMessage()
@@ -105,7 +117,7 @@ func (session *TCPSession) readAsync() {
 			packet.MoveRear(packet.GetExpectedPayloadSize())
 
 			if session.handler != nil {
-				if err := session.handler.OnRecv(packet); err != nil {
+				if err := session.handler.OnRecv(session, packet); err != nil {
 					session.logger.Error("Failed to call on receieve", logger.Why("error", err))
 					return
 				}
@@ -114,6 +126,8 @@ func (session *TCPSession) readAsync() {
 			packet.Reset()
 		}
 	}
+
+	session.logger.Debug("End read async", logger.Why("id", session.GetID()))
 }
 
 func (session *TCPSession) sendAsync() {
@@ -124,7 +138,8 @@ func (session *TCPSession) sendAsync() {
 		}
 	}()
 
-	session.acquire()
+	session.logger.Debug("Begin send async", logger.Why("id", session.GetID()))
+
 	ontick := time.NewTicker(TickDurationForSend)
 	var sendBuffer bytes.Buffer
 Loop:
@@ -133,14 +148,23 @@ Loop:
 		case <-session.ctx.Done():
 			break Loop
 
-		case msg := <-session.sendChannel:
+		case msg, ok := <-session.sendChannel:
+			if ok == false {
+				break Loop
+			}
+
 			sendBuffer.Write(msg)
 
 		case <-ontick.C:
+			if sendBuffer.Len() <= 0 {
+				continue
+			}
+
 			sentBytes, err := session.sendBytes(sendBuffer.Bytes())
 			if err != nil {
 				session.logger.Error("Failed to send",
-					logger.Why("error", err.Error()))
+					logger.Why("error", err.Error()),
+					logger.Why("sendBytes", sendBuffer.Len()))
 				break Loop
 			}
 
@@ -150,12 +174,16 @@ Loop:
 					logger.Why("sentBytes", sentBytes))
 				break Loop
 			} else {
+				if session.handler != nil {
+					session.handler.OnSend(session, sendBuffer.Bytes())
+				}
+
 				sendBuffer.Reset()
 			}
 		}
 	}
 
-	session.logger.Debug("End async send", logger.Why("id", session.GetID()))
+	session.logger.Debug("End send async", logger.Why("id", session.GetID()))
 }
 
 func (session *Session) sendBytes(data []byte) (int, error) {
@@ -177,24 +205,76 @@ func (session *Session) sendBytes(data []byte) (int, error) {
 
 func (session *TCPSession) Stop() error {
 	defer func() {
+		//명시적인 종료이므로 stop을 호출한 스레드에서 대기
+		session.wg.Wait()
 		if session.release() == true {
 			session.onRelease()
 		}
 	}()
 
-	session.acquire()
+	if session.acquire() == false {
+		return fmt.Errorf("failed to acquire session for stop, id[%d]", session.id)
+	}
+
+	session.logger.Debug("Stop session", logger.Why("id", session.GetID()))
+
 	session.conn.Close()
+
+	if isClosed(session.sendChannel) == false {
+		close(session.sendChannel)
+	}
+
+	if session.handler != nil {
+		return session.handler.OnDisconnect(session)
+	}
+
 	return nil
 }
 
+func (session *TCPSession) Send(msg interface{}) {
+	defer func() {
+		if session.release() == true {
+			session.onRelease()
+		}
+	}()
+
+	if session.acquire() == false {
+		return
+	}
+
+	packet := message.NewMessage()
+
+	packet.Push(msg)
+
+	packet.MakeHeader()
+
+	session.sendChannel <- packet.GetBuffer()
+}
+
 func (session *TCPSession) onRelease() {
-	close(session.sendChannel)
+	if isClosed(session.sendChannel) == false {
+		close(session.sendChannel)
+	}
 	session.recvBuffer.Clear()
 
-	if session.event != nil {
-		session.event.OnRelease(session)
-	}
+	sessionID := session.GetID()
 
 	session.wg.Wait()
 	session.reset()
+
+	session.logger.Debug("On release session", logger.Why("id", sessionID))
+
+	if session.event != nil {
+		session.event.OnRelease(sessionID, session)
+	}
+}
+
+func isClosed(ch chan []byte) bool {
+	notClosed := bool(true)
+	select {
+	case _, notClosed = <-ch:
+	default:
+	}
+
+	return notClosed == false
 }

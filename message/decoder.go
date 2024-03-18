@@ -12,7 +12,7 @@ func NewXORDecoder() *XORDecoder {
 	return &XORDecoder{}
 }
 
-func (dc *XORDecoder) Decode(key interface{}, buf []byte) bool {
+func (dc *XORDecoder) Decode(key interface{}, buf []byte) error {
 	numberKey := key.(uint32)
 
 	randKey := buf[0]
@@ -24,7 +24,7 @@ func (dc *XORDecoder) Decode(key interface{}, buf []byte) bool {
 		dstBuffer[i] = p ^ uint8(randKey+num)
 	}
 
-	return true
+	return nil
 }
 
 type RSADecoder struct {
@@ -34,15 +34,15 @@ func NewRSADecoder() *RSADecoder {
 	return &RSADecoder{}
 }
 
-func (dc *RSADecoder) Decode(key interface{}, buf []byte) bool {
+func (dc *RSADecoder) Decode(key interface{}, buf []byte) error {
 	privateKey := key.(*rsa.PrivateKey)
 
 	plainMsg, err := rsa.DecryptPKCS1v15(cryptoRand.Reader, privateKey, buf)
 	if err != nil {
-		return false
+		return err
 	}
 
 	buf = plainMsg
 
-	return true
+	return nil
 }

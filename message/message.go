@@ -2,18 +2,18 @@ package message
 
 import (
 	"encoding/binary"
-	"gonetlib/netlogger"
+	"fmt"
 	"gonetlib/util"
 	"math/rand"
 	"reflect"
 )
 
 type IMessageEncoder interface {
-	Encode(key interface{}, buf []byte) bool
+	Encode(key interface{}, buf []byte) error
 }
 
 type IMessageDecoder interface {
-	Decode(key interface{}, buf []byte) bool
+	Decode(key interface{}, buf []byte) error
 }
 
 type Message struct {
@@ -220,10 +220,8 @@ func (msg *Message) Peek(outValue interface{}) uint16 {
 			tempValue := msg.buffer[msg.front]
 			if tempValue == 1 {
 				*pOutValue = true
-			} else if tempValue == 0 {
-				*pOutValue = false
 			} else {
-				netlogger.GetLogger().Error("peeked value is not boolean : " + string(tempValue))
+				*pOutValue = false
 			}
 			break
 
@@ -331,21 +329,22 @@ func (msg *Message) Pop(outValue interface{}) uint16 {
 	return popSize
 }
 
-func (msg *Message) Encode(key uint32) {
-	msg.encoder.Encode(key, msg.buffer[3:msg.GetSize()])
+func (msg *Message) Encode(key uint32) error {
+	return msg.encoder.Encode(key, msg.buffer[3:msg.GetSize()])
 }
 
-func (msg *Message) Decode(key uint32) {
-	if msg.decoder.Decode(key, msg.buffer[3:msg.GetSize()]) == false {
-		return
+func (msg *Message) Decode(key uint32) error {
+	if err := msg.decoder.Decode(key, msg.buffer[3:msg.GetSize()]); err != nil {
+		return err
 	}
 
 	recvChecksum := msg.GetChecksum()
 	generatedChecksum := msg.generateChecksum()
 	if recvChecksum != generatedChecksum {
-		netlogger.Error("mismatch check sum : ", recvChecksum, generatedChecksum)
-		return
+		return fmt.Errorf("invalid check sum, mismatch | recv[%d] gen[%d]", recvChecksum, generatedChecksum)
 	}
+
+	return nil
 }
 
 func (msg *Message) MoveFront(offset uint16) {
@@ -372,8 +371,7 @@ func (msg *Message) generateChecksum() uint8 {
 	var total uint32
 
 	payload := msg.GetPayloadBuffer()
-
-	for i := range payload {
+	for i := 0; i < int(msg.GetPayloadSize()); i++ {
 		total += uint32(payload[i])
 	}
 

@@ -12,7 +12,7 @@ func NewXOREncoder() *XOREncoder {
 	return &XOREncoder{}
 }
 
-func (ec *XOREncoder) Encode(key interface{}, buf []byte) bool {
+func (ec *XOREncoder) Encode(key interface{}, buf []byte) error {
 	numberKey := key.(uint32)
 
 	randKey := buf[0]
@@ -24,21 +24,21 @@ func (ec *XOREncoder) Encode(key interface{}, buf []byte) bool {
 		dstBuffer[i] = p ^ uint8(uint8(numberKey)+num)
 	}
 
-	return true
+	return nil
 }
 
 type RSAEncoder struct {
 }
 
-func (ec *RSAEncoder) Encode(key interface{}, buf []byte) bool {
+func (ec *RSAEncoder) Encode(key interface{}, buf []byte) error {
 	publicKey := key.(*rsa.PublicKey)
 
 	cipherMsg, err := rsa.EncryptPKCS1v15(cryptoRand.Reader, publicKey, buf)
 	if err != nil {
-		return false
+		return err
 	}
 
 	buf = cipherMsg
 
-	return true
+	return nil
 }

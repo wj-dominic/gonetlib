@@ -4,6 +4,7 @@ import (
 	"gonetlib/logger"
 	"gonetlib/message"
 	"gonetlib/server"
+	"gonetlib/session"
 	"testing"
 )
 
@@ -22,19 +23,23 @@ type EchoSession struct {
 	EchoServer
 }
 
-func (h *EchoSession) OnConnect() error {
+func (h *EchoSession) Init(logger logger.ILogger) error {
 	return nil
 }
 
-func (h *EchoSession) OnRecv(packet *message.Message) error {
+func (h *EchoSession) OnConnect(session session.ISession) error {
 	return nil
 }
 
-func (h *EchoSession) OnSend(sendBytes []byte) error {
+func (h *EchoSession) OnRecv(session session.ISession, packet *message.Message) error {
 	return nil
 }
 
-func (h *EchoSession) OnDisconnect() error {
+func (h *EchoSession) OnSend(session session.ISession, sentBytes []byte) error {
+	return nil
+}
+
+func (h *EchoSession) OnDisconnect(session session.ISession) error {
 	return nil
 }
 

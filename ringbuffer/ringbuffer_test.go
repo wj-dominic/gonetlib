@@ -20,15 +20,15 @@ func TestRingBuffer_Read(t *testing.T) {
 
 	fmt.Println("write : ", values)
 
-	writeLength := ringBuffer.Write(values)
-	if writeLength != uint32(len(values)) {
+	writeLength, err := ringBuffer.Write(values)
+	if writeLength != uint32(len(values)) || err != nil {
 		t.Fail()
 	}
 
 	readValues := make([]byte, len(values)+10)
 
-	readLength := ringBuffer.Read(readValues[4:15], uint32(len(values)))
-	if readLength != uint32(len(values)) {
+	readLength, err := ringBuffer.Read(readValues[4:15], uint32(len(values)))
+	if readLength != uint32(len(values)) || err != nil {
 		t.Fail()
 	}
 

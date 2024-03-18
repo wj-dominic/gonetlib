@@ -14,14 +14,14 @@ const (
 func (level Level) ToString() string {
 	switch level {
 	case DebugLevel:
-		return "debug"
+		return "DEBUG"
 	case InfoLevel:
-		return "info"
+		return "INFO"
 	case WarnLevel:
-		return "warn"
+		return "WARN"
 	case ErrorLevel:
-		return "error"
+		return "ERROR"
 	default:
-		return fmt.Sprintf("other(%d)", level)
+		return fmt.Sprintf("OTHER(%d)", level)
 	}
 }

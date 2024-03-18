@@ -68,13 +68,13 @@ func (s *SessionManager) Dispose() {
 	})
 }
 
-func (s *SessionManager) OnRelease(session ISession) {
+func (s *SessionManager) OnRelease(sessionID uint64, session ISession) {
 	if session == nil {
 		return
 	}
 
 	//세션 관리 목록에서 삭제 후
-	s.sessions.Delete(session.GetID())
+	s.sessions.Delete(sessionID)
 
 	//세션 풀에 삽입
 	s.pool.Put(session)

@@ -3,7 +3,7 @@ package ringbuffer
 import (
 	"bytes"
 	"encoding/binary"
-	"gonetlib/netlogger"
+	"fmt"
 	"gonetlib/util"
 	"log"
 	"reflect"
@@ -79,7 +79,7 @@ func (ring *RingBuffer) IsFull() bool {
 	return ring.rear+1 == ring.front
 }
 
-func (ring *RingBuffer) Write(value interface{}) uint32 {
+func (ring *RingBuffer) Write(value interface{}) (uint32, error) {
 	var pushSize uint32
 	if reflect.TypeOf(value).Kind() == reflect.String {
 		pushSize = uint32(len(value.(string)))
@@ -91,8 +91,7 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 
 	emptySize := ring.GetEmptySize()
 	if emptySize < pushSize {
-		netlogger.Error("no have enough space in ring buffer")
-		return 0
+		return 0, fmt.Errorf("no have enough space in ring buffer")
 	}
 
 	tmpBuffer := make([]byte, pushSize)
@@ -167,7 +166,7 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 		tmpBuffer = value.([]byte)
 		break
 	default:
-		return 0
+		return 0, fmt.Errorf("invalid type of value | type[%v]", reflect.TypeOf(value).Kind())
 	}
 
 	directWriteSize := ring.getDirectWriteSize()
@@ -180,22 +179,24 @@ func (ring *RingBuffer) Write(value interface{}) uint32 {
 
 	ring.rear = (ring.rear + pushSize) % ring.cap
 
-	return pushSize
+	return pushSize, nil
 }
 
-func (ring *RingBuffer) Read(outValue interface{}, size uint32) uint32 {
-	peekSize := ring.Peek(outValue, size)
+func (ring *RingBuffer) Read(outValue interface{}, size uint32) (uint32, error) {
+	peekSize, err := ring.Peek(outValue, size)
+	if err != nil {
+		return peekSize, err
+	}
 
 	ring.front = (ring.front + peekSize) % ring.cap
 
-	return peekSize
+	return peekSize, nil
 }
 
-func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
+func (ring *RingBuffer) Peek(outValue interface{}, size uint32) (uint32, error) {
 	useSize := ring.GetUseSize()
 	if useSize < size {
-		log.Printf("no have enough data to get in ring buffer | useSize[%d] getSize[%d]", useSize, size)
-		return 0
+		return 0, fmt.Errorf("no have enough data to get in ring buffer | useSize[%d] getSize[%d]", useSize, size)
 	}
 
 	directReadSize := ring.getDirectReadSize()
@@ -230,10 +231,8 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 			tempValue := ring.buffer[ring.front]
 			if tempValue == 1 {
 				*pOutValue = true
-			} else if tempValue == 0 {
-				*pOutValue = false
 			} else {
-				netlogger.Error("peeked value is not boolean : " + string(tempValue))
+				*pOutValue = false
 			}
 			break
 
@@ -301,7 +300,7 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 			buf := bytes.NewReader(tmpBuffer)
 			err := binary.Read(buf, ring.order, outValue)
 			if err != nil {
-				netlogger.Error("binary Read failed:%s", err.Error())
+				return 0, fmt.Errorf("binary Read failed:%s", err.Error())
 			}
 			peekSize = uint32(util.Sizeof(reflect.ValueOf(outValue).Elem()))
 			break
@@ -317,14 +316,18 @@ func (ring *RingBuffer) Peek(outValue interface{}, size uint32) uint32 {
 			*pOutValue = tmpBuffer
 			peekSize = size
 			break
+		default:
+			return 0, fmt.Errorf("invalid type of out value ptr | type[%v]", reflect.TypeOf(outValue).Elem().Kind())
 		}
 		break
 	case reflect.Slice:
 		peekSize = uint32(copy(outValue.([]byte), tmpBuffer[:size]))
 		break
+	default:
+		return 0, fmt.Errorf("invalid type of out value | type[%v]", reflect.TypeOf(outValue).Kind())
 	}
 
-	return peekSize
+	return peekSize, nil
 }
 
 func (ring *RingBuffer) MoveRear(offset uint32) bool {

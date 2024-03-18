@@ -7,25 +7,28 @@ import (
 	"gonetlib/util"
 	"net"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
 type ISession interface {
 	Start() error
 	Stop() error
-	Setup(uint64, net.Conn, ISessionHandler, ISessionEvent)
+	Setup(uint64, net.Conn, ISessionHandler, ISessionEvent) error
 	GetID() uint64
+	Send(interface{})
 }
 
 type ISessionHandler interface {
-	OnConnect() error
-	OnDisconnect() error
-	OnRecv(packet *message.Message) error
-	OnSend([]byte) error
+	Init(logger.ILogger) error
+	OnConnect(ISession) error
+	OnDisconnect(ISession) error
+	OnRecv(ISession, *message.Message) error
+	OnSend(ISession, []byte) error
 }
 
 type ISessionEvent interface {
-	OnRelease(ISession)
+	OnRelease(uint64, ISession)
 }
 
 type releaseFlag struct {
@@ -63,27 +66,45 @@ func newSession(logger logger.ILogger, ctx context.Context) Session {
 	}
 }
 
-func (session *Session) Setup(id uint64, conn net.Conn, handler ISessionHandler, event ISessionEvent) {
+func (session *Session) Setup(id uint64, conn net.Conn, handler ISessionHandler, event ISessionEvent) error {
 	session.id = id
 	session.conn = conn
 	session.handler = handler
 	session.event = event
+
+	if handler != nil {
+		return handler.Init(session.logger)
+	}
+
+	return nil
 }
 
 func (session *Session) GetID() uint64 {
 	return session.id
 }
 
-func (session *Session) acquire() bool {
-	if session.releaseFlag.flag == 1 {
+func (session *Session) acquire(force ...bool) bool {
+	if atomic.LoadInt32(&session.releaseFlag.flag) == 1 {
 		return false
 	}
 
-	util.InterlockIncrement(&session.releaseFlag.refCount)
+	if util.InterlockIncrement(&session.releaseFlag.refCount) == 1 {
+		//다른 곳에서 release 중일 수 있으므로 1이면 획득 불가
+		if force[0] == true {
+			return true
+		}
+
+		return false
+	}
+
 	return true
 }
 
 func (session *Session) release() bool {
+	if atomic.LoadInt32(&session.releaseFlag.flag) == 1 {
+		return false
+	}
+
 	refCount := util.InterlockDecrement(&session.releaseFlag.refCount)
 	if refCount == 0 {
 		exchange := (*int64)(unsafe.Pointer(&releaseFlag{0, 1}))
