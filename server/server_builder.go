@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"gonetlib/logger"
 )
 
@@ -46,6 +45,6 @@ func (builder *serverBuilder) Handler(handler IServerHandler) IServerBuilder {
 }
 
 func (builder *serverBuilder) Build() IServer {
-	server := newServerWithContext(builder.logger, builder.config, builder.handler, context.Background())
+	server := newServer(builder.logger, builder.config, builder.handler)
 	return server
 }

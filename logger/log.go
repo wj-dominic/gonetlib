@@ -45,16 +45,6 @@ func (log *Log) ToString() string {
 	sb.WriteString(log.time)
 	sb.WriteString(DELIM)
 
-	// ErrorLevel 이상일 때만 함수명과 라인번호를 출력
-	// Info를 가장 낮추고 Debug부터 출력하는 것은 어떨지?
-	if log.level >= ErrorLevel {
-		sb.WriteString(log.functionName)
-		sb.WriteString(":")
-		sb.WriteString(log.line)
-		sb.WriteString(DELIM)
-
-	}
-
 	sb.WriteString(log.level.ToString())
 	sb.WriteString(DELIM)
 	sb.WriteString(log.message)
@@ -62,6 +52,14 @@ func (log *Log) ToString() string {
 	for _, field := range log.fields {
 		sb.WriteString(DELIM)
 		sb.WriteString(field.ToString())
+	}
+
+	//로그 포맷이 이쁘게 나오지 않아서 뒤로 보냄
+	if log.level >= ErrorLevel {
+		sb.WriteString(DELIM)
+		sb.WriteString(log.functionName)
+		sb.WriteString(":")
+		sb.WriteString(log.line)
 	}
 
 	return sb.String()

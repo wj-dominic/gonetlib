@@ -1,7 +1,7 @@
 package session
 
 import (
-	"context"
+	"fmt"
 	"gonetlib/logger"
 	"gonetlib/util"
 	"net"
@@ -10,38 +10,36 @@ import (
 )
 
 type ISessionManager interface {
-	NewSession(uint64, net.Conn, ISessionHandler) ISession
+	NewSession(uint64, net.Conn, ISessionHandler) (ISession, error)
 	Dispose()
 }
 
 type SessionManager struct {
-	ctx      context.Context
-	pool     sync.Pool
-	sessions sync.Map
-	disposed int32
+	pool       sync.Pool
+	sessions   sync.Map
+	isDisposed int32
 }
 
-func CreateSessionManager(logger logger.ILogger, limit uint32, ctx context.Context) *SessionManager {
+func CreateSessionManager(logger logger.ILogger, limit uint32) *SessionManager {
 	return &SessionManager{
-		ctx: ctx,
 		pool: sync.Pool{
 			New: func() interface{} {
-				return newTcpSession(logger, ctx)
+				return newTcpSession(logger)
 			},
 		},
-		sessions: sync.Map{},
-		disposed: 0,
+		sessions:   sync.Map{},
+		isDisposed: 0,
 	}
 }
 
-func (s *SessionManager) NewSession(id uint64, conn net.Conn, handler ISessionHandler) ISession {
-	if atomic.LoadInt32(&s.disposed) == 1 {
-		return nil
+func (s *SessionManager) NewSession(id uint64, conn net.Conn, handler ISessionHandler) (ISession, error) {
+	if atomic.LoadInt32(&s.isDisposed) == 1 {
+		return nil, fmt.Errorf("session manager was disposed")
 	}
 
 	session := s.pool.Get().(ISession)
 	if session == nil {
-		return nil
+		return nil, fmt.Errorf("failed to get session from pool")
 	}
 
 	session.Setup(id, conn, handler, s)
@@ -50,14 +48,14 @@ func (s *SessionManager) NewSession(id uint64, conn net.Conn, handler ISessionHa
 	if loaded == true {
 		//말이 안되는 상황
 		//풀에 있는 세션은 세션 관리 목록에 있으면 안됨
-		return nil
+		return nil, fmt.Errorf("already session is running, session id:%d", session.GetID())
 	}
 
-	return session
+	return session, nil
 }
 
 func (s *SessionManager) Dispose() {
-	if util.InterlockedCompareExchange(&s.disposed, 1, 0) == false {
+	if util.InterlockedCompareExchange(&s.isDisposed, 1, 0) == false {
 		return
 	}
 
