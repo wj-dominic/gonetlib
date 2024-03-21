@@ -119,8 +119,6 @@ func (session *Session) release() bool {
 func (session *Session) reset() {
 	session.id = 0
 	session.conn = nil
-	session.handler = nil
-	session.event = nil
 
 	//release flag 초기화는 가장 마지막에
 	session.releaseFlag = releaseFlag{0, 0}

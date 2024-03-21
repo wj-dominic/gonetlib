@@ -15,6 +15,7 @@ type ISessionManager interface {
 }
 
 type SessionManager struct {
+	logger     logger.ILogger
 	pool       sync.Pool
 	sessions   sync.Map
 	isDisposed int32
@@ -22,6 +23,7 @@ type SessionManager struct {
 
 func CreateSessionManager(logger logger.ILogger, limit uint32) *SessionManager {
 	return &SessionManager{
+		logger: logger,
 		pool: sync.Pool{
 			New: func() interface{} {
 				return newTcpSession(logger)
@@ -44,12 +46,15 @@ func (s *SessionManager) NewSession(id uint64, conn net.Conn, handler ISessionHa
 
 	session.Setup(id, conn, handler, s)
 
-	_, loaded := s.sessions.LoadOrStore(session.GetID(), session)
+	value, loaded := s.sessions.LoadOrStore(session.GetID(), session)
 	if loaded == true {
 		//말이 안되는 상황
 		//풀에 있는 세션은 세션 관리 목록에 있으면 안됨
-		return nil, fmt.Errorf("already session is running, session id:%d", session.GetID())
+		loadedSession := value.(ISession)
+		return nil, fmt.Errorf("already session is running, session id:%d, loaded session:%d ", session.GetID(), loadedSession.GetID())
 	}
+
+	s.logger.Info("new session", logger.Why("id", session.GetID()))
 
 	return session, nil
 }
@@ -70,6 +75,8 @@ func (s *SessionManager) OnRelease(sessionID uint64, session ISession) {
 	if session == nil {
 		return
 	}
+
+	s.logger.Info("release session", logger.Why("id", sessionID))
 
 	//세션 관리 목록에서 삭제 후
 	s.sessions.Delete(sessionID)
