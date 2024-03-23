@@ -1,11 +1,12 @@
 package logger
 
 import (
-	"context"
 	"fmt"
+	"gonetlib/util"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,31 +19,23 @@ type ILogger interface {
 }
 
 type Logger struct {
-	config config
-	logs   chan Log
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	config     config
+	logs       chan Log
+	wg         sync.WaitGroup
+	isDisposed int32
 }
 
-func CreateLoggerWithContext(config config, ctx context.Context) ILogger {
-	_ctx, _cancel := context.WithCancel(ctx)
-
+func CreateLogger(config config) ILogger {
 	logger := &Logger{
-		config: config,
-		logs:   make(chan Log),
-		ctx:    _ctx,
-		cancel: _cancel,
+		config:     config,
+		logs:       make(chan Log),
+		isDisposed: 0,
 	}
 
 	logger.wg.Add(1)
 	go logger.tick()
 
 	return logger
-}
-
-func CreateLogger(config config) ILogger {
-	return CreateLoggerWithContext(config, context.Background())
 }
 
 func (logger *Logger) Debug(message string, fields ...Field) {
@@ -59,12 +52,19 @@ func (logger *Logger) Error(message string, fields ...Field) {
 }
 
 func (logger *Logger) Dispose() {
-	logger.cancel()
-	logger.wg.Wait()
+	if util.InterlockedCompareExchange(&logger.isDisposed, 1, 0) == false {
+		return
+	}
+
 	close(logger.logs)
+	logger.wg.Wait()
 }
 
 func (logger *Logger) log(level Level, message string, fields ...Field) {
+	if atomic.LoadInt32(&logger.isDisposed) == 1 {
+		return
+	}
+
 	//레벨이 낮으면 로그 안씀
 	if logger.config.limitLevel > level {
 		return
@@ -106,9 +106,6 @@ out:
 			}
 
 			sb.Reset()
-
-		case <-logger.ctx.Done():
-			break out
 		}
 	}
 
@@ -120,8 +117,6 @@ out:
 		}
 		sb.Reset()
 	}
-
-	fmt.Println("tick is end")
 }
 
 func (logger *Logger) flushToFile(text string) error {

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"gonetlib/logger"
 	"gonetlib/session"
 	"gonetlib/util/snowflake"
@@ -10,7 +9,7 @@ import (
 )
 
 type IServerHandler interface {
-	OnRun() error
+	OnRun(logger.ILogger) error
 	OnStop() error
 	session.ISessionHandler
 }
@@ -26,32 +25,21 @@ type Server struct {
 	sessions session.ISessionManager
 	handler  IServerHandler
 	logger   logger.ILogger
-
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-func newServerWithContext(logger logger.ILogger, info ServerInfo, handler IServerHandler, ctx context.Context) IServer {
-	_ctx, cancel := context.WithCancel(ctx)
-	server := &Server{
-		info:     info,
-		acceptor: nil,
-		sessions: session.CreateSessionManager(logger, info.MaxSession, ctx),
-		handler:  handler,
-		logger:   logger,
-
-		ctx:    _ctx,
-		cancel: cancel,
-	}
-
-	acceptor := CreateAcceptor(logger, info.Protocols, info.Address, server, ctx)
-	server.acceptor = acceptor
-
-	return server
 }
 
 func newServer(logger logger.ILogger, info ServerInfo, handler IServerHandler) IServer {
-	return newServerWithContext(logger, info, handler, context.Background())
+	server := &Server{
+		info:     info,
+		acceptor: nil,
+		sessions: session.CreateSessionManager(logger, info.MaxSession),
+		handler:  handler,
+		logger:   logger,
+	}
+
+	acceptor := CreateAcceptor(logger, info.Protocols, info.Address, server)
+	server.acceptor = acceptor
+
+	return server
 }
 
 func (s *Server) Run() bool {
@@ -63,7 +51,7 @@ func (s *Server) Run() bool {
 	}
 
 	if s.handler != nil {
-		if err := s.handler.OnRun(); err != nil {
+		if err := s.handler.OnRun(s.logger); err != nil {
 			s.logger.Error("Failed to call on run handler", logger.Why("error", err.Error()))
 			return false
 		}
@@ -79,11 +67,9 @@ func (s *Server) Stop() bool {
 		return false
 	}
 
-	//기능 중단
-	s.cancel()
-
 	//종료 대기
 	s.acceptor.Stop()
+	s.sessions.Dispose()
 	s.logger.Dispose()
 
 	s.logger.Info("Success to stop server")
@@ -91,11 +77,12 @@ func (s *Server) Stop() bool {
 }
 
 func (s *Server) OnAccept(conn net.Conn) {
-	session := s.sessions.NewSession(s.makeSessionId(), conn, s.handler)
+	session, err := s.sessions.NewSession(s.makeSessionId(), conn, s.handler)
 	if session == nil {
 		s.logger.Error("Failed to create new session",
 			logger.Why("local address", conn.LocalAddr().String()),
-			logger.Why("remote", conn.RemoteAddr().String()))
+			logger.Why("remote", conn.RemoteAddr().String()),
+			logger.Why("error", err.Error()))
 
 		conn.Close()
 		return
@@ -112,6 +99,7 @@ func (s *Server) OnAccept(conn net.Conn) {
 }
 
 func (s *Server) makeSessionId() uint64 {
+	//TODO:중복 값이 나오는 것 같다
 	return snowflake.GenerateID(int64(s.info.Id))
 }
 

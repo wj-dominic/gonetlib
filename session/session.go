@@ -1,7 +1,6 @@
 package session
 
 import (
-	"context"
 	"gonetlib/logger"
 	"gonetlib/message"
 	"gonetlib/util"
@@ -43,14 +42,13 @@ type Session struct {
 	conn net.Conn
 
 	wg          sync.WaitGroup
-	ctx         context.Context
 	releaseFlag releaseFlag
 
 	handler ISessionHandler
 	event   ISessionEvent
 }
 
-func newSession(logger logger.ILogger, ctx context.Context) Session {
+func newSession(logger logger.ILogger) Session {
 	return Session{
 		logger: logger,
 
@@ -58,7 +56,6 @@ func newSession(logger logger.ILogger, ctx context.Context) Session {
 		conn: nil,
 
 		wg:          sync.WaitGroup{},
-		ctx:         ctx,
 		releaseFlag: releaseFlag{0, 0},
 
 		handler: nil,
@@ -122,8 +119,6 @@ func (session *Session) release() bool {
 func (session *Session) reset() {
 	session.id = 0
 	session.conn = nil
-	session.handler = nil
-	session.event = nil
 
 	//release flag 초기화는 가장 마지막에
 	session.releaseFlag = releaseFlag{0, 0}

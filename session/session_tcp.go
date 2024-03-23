@@ -2,7 +2,6 @@ package session
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"gonetlib/logger"
 	"gonetlib/message"
@@ -21,9 +20,9 @@ type TCPSession struct {
 	sendChannel chan []byte
 }
 
-func newTcpSession(logger logger.ILogger, ctx context.Context) ISession {
+func newTcpSession(logger logger.ILogger) ISession {
 	return &TCPSession{
-		Session:     newSession(logger, ctx),
+		Session:     newSession(logger),
 		recvBuffer:  ringbuffer.NewRingBuffer(true),
 		sendChannel: make(chan []byte, 100),
 	}
@@ -145,9 +144,6 @@ func (session *TCPSession) sendAsync() {
 Loop:
 	for {
 		select {
-		case <-session.ctx.Done():
-			break Loop
-
 		case msg, ok := <-session.sendChannel:
 			if ok == false {
 				break Loop
@@ -218,14 +214,15 @@ func (session *TCPSession) Stop() error {
 
 	session.logger.Debug("Stop session", logger.Why("id", session.GetID()))
 
-	session.conn.Close()
+	if session.conn.Close() == nil {
+		session.conn = nil
+		if session.handler != nil {
+			session.handler.OnDisconnect(session)
+		}
+	}
 
 	if isClosed(session.sendChannel) == false {
 		close(session.sendChannel)
-	}
-
-	if session.handler != nil {
-		return session.handler.OnDisconnect(session)
 	}
 
 	return nil
@@ -252,18 +249,38 @@ func (session *TCPSession) Send(msg interface{}) {
 }
 
 func (session *TCPSession) onRelease() {
+	//한번만 실행되는 함수
+
+	//1. 커넥션 종료
+	if session.conn != nil {
+		if session.conn.Close() == nil {
+			session.conn = nil
+			if session.handler != nil {
+				session.handler.OnDisconnect(session)
+			}
+		}
+	}
+
+	//2. 샌드 채널 종료
 	if isClosed(session.sendChannel) == false {
 		close(session.sendChannel)
 	}
+
+	//3. 리시브 버퍼 정리
 	session.recvBuffer.Clear()
 
+	//4. 세션 ID 임시보관
 	sessionID := session.GetID()
 
+	//5. 고루틴 종료 대기 (수신, 송신 고루틴)
 	session.wg.Wait()
+
+	//6. 세션 초기화
 	session.reset()
 
 	session.logger.Debug("On release session", logger.Why("id", sessionID))
 
+	//7. 전파
 	if session.event != nil {
 		session.event.OnRelease(sessionID, session)
 	}
