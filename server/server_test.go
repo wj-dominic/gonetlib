@@ -92,8 +92,6 @@ func TestSever(t *testing.T) {
 	server := builder.Build()
 	server.Run()
 
-	//time.Sleep(time.Second * 30)
-
 	var wg sync.WaitGroup
 
 	for i := 0; i < 1000; i++ {
@@ -121,6 +119,8 @@ func TestSever(t *testing.T) {
 
 			time.Sleep(time.Second * 2)
 		}(i)
+
+		time.Sleep(time.Millisecond)
 	}
 
 	wg.Wait()

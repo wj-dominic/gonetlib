@@ -4,7 +4,6 @@ import (
 	"gonetlib/logger"
 	"gonetlib/session"
 	"gonetlib/util/snowflake"
-	"gonetlib/util/stopwatch"
 
 	"net"
 )
@@ -78,8 +77,6 @@ func (s *Server) Stop() bool {
 }
 
 func (s *Server) OnAccept(conn net.Conn) {
-	watch := stopwatch.New()
-	watch.Start()
 	session, err := s.sessions.NewSession(s.makeSessionId(), conn, s.handler)
 	if session == nil {
 		s.logger.Error("Failed to create new session",
@@ -90,11 +87,7 @@ func (s *Server) OnAccept(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	watch.Stop()
-	s.logger.Info("NewSession() elapsed time", logger.Why("time", watch.ElapsedTime().String()))
 
-	watch.Reset()
-	watch.Start()
 	if err := session.Start(); err != nil {
 		s.logger.Error("Failed to start a session",
 			logger.Why("session id", session.GetID()),
@@ -103,8 +96,6 @@ func (s *Server) OnAccept(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	watch.Stop()
-	s.logger.Info("session.Start() elapsed time", logger.Why("time", watch.ElapsedTime().String()))
 }
 
 func (s *Server) makeSessionId() uint64 {

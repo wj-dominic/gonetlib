@@ -2,7 +2,6 @@ package server
 
 import (
 	"gonetlib/logger"
-	"gonetlib/util/stopwatch"
 	"net"
 	"sync"
 )
@@ -30,10 +29,7 @@ type Acceptor struct {
 	endpoint     Endpoint
 	listenConfig net.ListenConfig
 	handler      IAcceptHandler
-
-	count int32
-
-	wg sync.WaitGroup
+	wg           sync.WaitGroup
 }
 
 func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint, handler IAcceptHandler) IAcceptor {
@@ -83,25 +79,13 @@ func (a *Acceptor) waitForTCPConn() {
 	defer a.wg.Done()
 
 	for {
-		watch := stopwatch.New()
-
-		watch.Start()
 		conn, err := a.listener.Accept()
 		if err != nil {
 			a.logger.Error("Failed to accept for tcp connection", logger.Why("error", err.Error()))
 			return
 		}
-		watch.Stop()
 
-		a.logger.Info("Accept() elapsed time", logger.Why("time", watch.ElapsedTime().String()))
-
-		a.count++
-
-		watch.Reset()
-		watch.Start()
 		a.onAccept(conn)
-		watch.Stop()
-		a.logger.Info("onAccept() elapsed time", logger.Why("time", watch.ElapsedTime().String()))
 	}
 }
 
@@ -140,8 +124,6 @@ func (a *Acceptor) Stop() {
 	if a.packetConn != nil {
 		a.packetConn.Close()
 	}
-
-	a.logger.Info("accept count", logger.Why("count", a.count))
 
 	a.wg.Wait()
 }
