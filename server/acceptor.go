@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"gonetlib/logger"
 	"net"
 	"sync"
@@ -30,12 +29,10 @@ type Acceptor struct {
 	endpoint     Endpoint
 	listenConfig net.ListenConfig
 	handler      IAcceptHandler
-
-	ctx context.Context
-	wg  sync.WaitGroup
+	wg           sync.WaitGroup
 }
 
-func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint, handler IAcceptHandler, ctx context.Context) IAcceptor {
+func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint, handler IAcceptHandler) IAcceptor {
 	return &Acceptor{
 		logger:     logger,
 		listener:   nil,
@@ -46,14 +43,13 @@ func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint
 		listenConfig: net.ListenConfig{},
 		handler:      handler,
 
-		ctx: ctx,
-		wg:  sync.WaitGroup{},
+		wg: sync.WaitGroup{},
 	}
 }
 
 func (a *Acceptor) Start() error {
 	if (a.protocols & TCP) == TCP {
-		listener, err := a.listenConfig.Listen(a.ctx, "tcp", a.endpoint.ToString())
+		listener, err := net.Listen("tcp", a.endpoint.ToString())
 		if err != nil {
 			return err
 		}
@@ -65,7 +61,7 @@ func (a *Acceptor) Start() error {
 	}
 
 	if (a.protocols & UDP) == UDP {
-		conn, err := a.listenConfig.ListenPacket(a.ctx, "udp", a.endpoint.ToString())
+		conn, err := net.ListenPacket("udp", a.endpoint.ToString())
 		if err != nil {
 			return err
 		}
@@ -83,18 +79,13 @@ func (a *Acceptor) waitForTCPConn() {
 	defer a.wg.Done()
 
 	for {
-		select {
-		case <-a.ctx.Done():
+		conn, err := a.listener.Accept()
+		if err != nil {
+			a.logger.Error("Failed to accept for tcp connection", logger.Why("error", err.Error()))
 			return
-		default:
-			conn, err := a.listener.Accept()
-			if err != nil {
-				a.logger.Error("Failed to accept for tcp connection", logger.Why("error", err.Error()))
-				return
-			}
-
-			a.onAccept(conn)
 		}
+
+		a.onAccept(conn)
 	}
 }
 
@@ -102,19 +93,14 @@ func (a *Acceptor) waitForUDPConn() {
 	defer a.wg.Done()
 
 	for {
-		select {
-		case <-a.ctx.Done():
+		buffer := make([]byte, MAX_BUFFER)
+		recvBytes, addr, err := a.packetConn.ReadFrom(buffer)
+		if err != nil {
+			a.logger.Error("Failed to read from buffer", logger.Why("error", err.Error()))
 			return
-		default:
-			buffer := make([]byte, MAX_BUFFER)
-			recvBytes, addr, err := a.packetConn.ReadFrom(buffer)
-			if err != nil {
-				a.logger.Error("Failed to read from buffer", logger.Why("error", err.Error()))
-				return
-			}
-
-			a.onRecvFrom(addr, buffer, uint32(recvBytes))
 		}
+
+		a.onRecvFrom(addr, buffer, uint32(recvBytes))
 	}
 }
 
@@ -131,9 +117,6 @@ func (a *Acceptor) onRecvFrom(client net.Addr, recvData []byte, recvBytes uint32
 }
 
 func (a *Acceptor) Stop() {
-	_, cancel := context.WithCancel(a.ctx)
-	cancel()
-
 	if a.listener != nil {
 		a.listener.Close()
 	}

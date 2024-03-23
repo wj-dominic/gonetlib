@@ -17,8 +17,8 @@ var (
 )
 
 func GenerateID(machineID int64) uint64 {
-	defer lock.Unlock()
-	lock.Lock()
+	// defer lock.Unlock()
+	// lock.Lock()
 
 	generatedID := uint64(0)
 
@@ -37,7 +37,7 @@ func GenerateID(machineID int64) uint64 {
 
 	lastTime = now
 
-	pid := int64(os.Getpid())
+	pid := (int64(os.Getpid()) % 31)
 
 	generatedID = (uint64)(((now - epoch) << 22) | (machineID << 17) | (pid << 12) | (sequence))
 	return generatedID
