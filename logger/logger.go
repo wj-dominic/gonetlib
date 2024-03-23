@@ -149,7 +149,7 @@ var _logger ILogger = CreateLoggerConfig().
 	MinimumLevel(DebugLevel).
 	WriteToConsole().
 	WriteToFile(WriteToFile{
-		Filepath:        "log.txt",
+		Filepath:        "./log.txt",
 		RollingInterval: RollingIntervalDay,
 	}).
 	CreateLogger()
