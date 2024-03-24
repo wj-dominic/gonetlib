@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"gonetlib/util"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 type taskRunner struct {
-	jobs       []chan func(uint8)
+	Ids        sync.Map
+	jobs       []chan func(uint8) bool
 	wg         sync.WaitGroup
 	isDisposed int32
 	inUse      int32
@@ -19,17 +22,25 @@ var runner *taskRunner = newTaskRunner(uint8(runtime.NumCPU()))
 
 func newTaskRunner(maxCount uint8) *taskRunner {
 	runner := &taskRunner{
-		jobs:       make([]chan func(uint8), maxCount),
+		Ids:        sync.Map{},
+		jobs:       make([]chan func(uint8) bool, maxCount),
 		wg:         sync.WaitGroup{},
 		isDisposed: 0,
 	}
 
 	for i := range runner.jobs {
-		runner.jobs[i] = make(chan func(uint8))
+		runner.jobs[i] = make(chan func(uint8) bool, 100)
 
 		runner.wg.Add(1)
 		go func(id uint8) {
 			defer runner.wg.Done()
+
+			goroutineId := getGoroutineId()
+			if goroutineId == -1 {
+				panic("failed to get gorouine id")
+			}
+
+			runner.Ids.Store(goroutineId, id)
 
 			ontick := time.NewTicker(time.Second * 3)
 
@@ -40,11 +51,23 @@ func newTaskRunner(maxCount uint8) *taskRunner {
 					if ok == false {
 						break Loop
 					}
-					job(id)
+					if job(id) == false {
+						runner.jobs[id] <- job
+					}
 				case <-ontick.C:
+					//fmt.Println("jobs length : ", len(runner.jobs[id]), "id : ", id)
+
 					if runner.isDisposed == 1 {
 						break Loop
 					}
+				}
+				time.Sleep(time.Millisecond)
+			}
+
+			//flush
+			if len(runner.jobs[id]) > 0 {
+				for job := range runner.jobs[id] {
+					job(id)
 				}
 			}
 
@@ -54,7 +77,22 @@ func newTaskRunner(maxCount uint8) *taskRunner {
 	return runner
 }
 
-func add(f func(uint8), numOfThread ...uint8) error {
+func getGoroutineId() int {
+	buf := make([]byte, 32)
+	n := runtime.Stack(buf, false)
+	buf = buf[:n]
+
+	text := string(buf)
+	splits := strings.Split(text, " ")
+	goId, err := strconv.Atoi(splits[1])
+	if err != nil {
+		return -1
+	}
+
+	return goId
+}
+
+func add(f func(uint8) bool, numOfThread ...uint8) error {
 	defer func() {
 		inUse := util.InterlockDecrement(&runner.inUse)
 		if inUse == 0 && runner.isDisposed == 1 {
@@ -68,7 +106,7 @@ func add(f func(uint8), numOfThread ...uint8) error {
 		return fmt.Errorf("runner was disposed")
 	}
 
-	tempNumOfThread := uint8(0)
+	tempNumOfThread := getRunnerId(getGoroutineId())
 	if len(numOfThread) != 0 {
 		tempNumOfThread = numOfThread[0]
 	}
@@ -80,6 +118,15 @@ func add(f func(uint8), numOfThread ...uint8) error {
 	runner.jobs[tempNumOfThread] <- f
 
 	return nil
+}
+
+func getRunnerId(goroutineId int) uint8 {
+	runnerId, ok := runner.Ids.Load(goroutineId)
+	if ok == false {
+		return 0
+	}
+
+	return runnerId.(uint8)
 }
 
 func Dispose() {
