@@ -55,8 +55,6 @@ func newTaskRunner(maxCount uint8) *taskRunner {
 						runner.jobs[id] <- job
 					}
 				case <-ontick.C:
-					//fmt.Println("jobs length : ", len(runner.jobs[id]), "id : ", id)
-
 					if runner.isDisposed == 1 {
 						break Loop
 					}
