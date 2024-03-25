@@ -1,68 +1,90 @@
 package server_test
 
 import (
+	"fmt"
 	"gonetlib/logger"
 	"gonetlib/message"
 	"gonetlib/server"
 	"gonetlib/session"
+	"gonetlib/task"
 	"gonetlib/util"
 	"net"
-	"strconv"
-	"strings"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 )
 
-type EchoServer struct {
+type TestServer struct {
 	logger logger.ILogger
 	count  int32
 }
 
-func (s *EchoServer) OnRun(logger logger.ILogger) error {
+func (s *TestServer) OnRun(logger logger.ILogger) error {
 	s.logger = logger
 	s.count = 0
 	return nil
 }
 
-func (s *EchoServer) OnStop() error {
+func (s *TestServer) OnStop() error {
 	s.logger.Info("Connected session count", logger.Why("count", s.count))
 	return nil
 }
 
-type EchoSession struct {
-	EchoServer
+type TestSession struct {
+	TestServer
 }
 
-func (h *EchoSession) Init(logger logger.ILogger) error {
+func (h *TestSession) Init(logger logger.ILogger) error {
 	return nil
 }
 
-func (h *EchoSession) OnConnect(session session.ISession) error {
+func (h *TestSession) OnConnect(session session.ISession) error {
 	h.logger.Info("On connect session", logger.Why("id", session.GetID()))
 	util.InterlockIncrement(&h.count)
 	return nil
 }
 
-func (h *EchoSession) OnRecv(session session.ISession, packet *message.Message) error {
-	var msg string
-	var id int
-	packet.Pop(&msg)
-	packet.Pop(&id)
+func (h *TestSession) OnRecv(session session.ISession, packet *message.Message) error {
+	var packetId uint16
+	var payloadSize uint16
 
-	var sb strings.Builder
-	sb.WriteString(msg)
-	sb.WriteString(strconv.Itoa(id))
+	headerSize := uint16(util.Sizeof(reflect.ValueOf(packetId)) + util.Sizeof(reflect.ValueOf(payloadSize)))
 
-	h.logger.Info("On recv session", logger.Why("id", session.GetID()), logger.Why("msg", sb.String()))
+	packet.Peek(&packetId)
+	packet.Peek(&payloadSize)
+
+	if packet.GetPayloadSize() < headerSize+payloadSize {
+		return fmt.Errorf("payload size grater then packet size, payloadSize %d > packetSize %d", headerSize+payloadSize, packet.GetPayloadSize())
+	}
+
+	packet.MoveFront(headerSize)
+
+	if packet.GetPayloadSize() != payloadSize {
+		return fmt.Errorf("not matched payload size with packet size, payloadSize %d > packetSize %d", payloadSize, packet.GetPayloadSize())
+	}
+
+	//TODO:packet id로 packet handler 뽑기
+	handler := GetPacketHandler(packetId)
+	if handler != nil {
+		return fmt.Errorf("cannot found packet handler, packetId %d", packetId)
+	}
+
+	//TODO:packet handler를 task로 집어넣기
+	//session 생명 주기는 어케할 것인가
+	task.New(func(i ...interface{}) (error, error) {
+		handler.Run(session, packet)
+		return nil, nil
+	})
+
 	return nil
 }
 
-func (h *EchoSession) OnSend(session session.ISession, sentBytes []byte) error {
+func (h *TestSession) OnSend(session session.ISession, sentBytes []byte) error {
 	return nil
 }
 
-func (h *EchoSession) OnDisconnect(session session.ISession) error {
+func (h *TestSession) OnDisconnect(session session.ISession) error {
 	h.logger.Info("On disconnect session", logger.Why("id", session.GetID()))
 	return nil
 }
@@ -87,7 +109,7 @@ func TestSever(t *testing.T) {
 		MaxSession: 10000,
 	})
 	builder.Logger(_logger)
-	builder.Handler(&EchoSession{})
+	builder.Handler(&TestSession{})
 
 	server := builder.Build()
 	server.Run()

@@ -47,10 +47,10 @@ func (t *Task[Out]) Await(await func(Out, error)) ITask[Out] {
 
 	awaitFunc := func(threadId uint8) bool {
 		defer func() {
-			//fmt.Printf("end await job | thread id %d\n", threadId)
+			fmt.Printf("end await job | thread id %d\n", threadId)
 		}()
 
-		//fmt.Printf("begin await job | thread id %d\n", threadId)
+		fmt.Printf("begin await job | thread id %d\n", threadId)
 
 		select {
 		case result, ok := <-t.resultChan:

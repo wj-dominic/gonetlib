@@ -99,7 +99,6 @@ func (s *Server) OnAccept(conn net.Conn) {
 }
 
 func (s *Server) makeSessionId() uint64 {
-	//TODO:중복 값이 나오는 것 같다
 	return snowflake.GenerateID(int64(s.info.Id))
 }
 
