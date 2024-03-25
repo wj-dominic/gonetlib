@@ -1,7 +1,6 @@
 package session_test
 
 import (
-	"context"
 	"gonetlib/logger"
 	"gonetlib/message"
 	"gonetlib/session"
@@ -91,9 +90,9 @@ func TestSession(t *testing.T) {
 
 	server, client := net.Pipe()
 
-	sessionManager := session.CreateSessionManager(_logger, 1000, context.Background())
-	serverSession := sessionManager.NewSession(snowflake.GenerateID(1), server, &ServerSession{})
-	clientSession := sessionManager.NewSession(snowflake.GenerateID(1), client, &ClientSession{})
+	sessionManager := session.CreateSessionManager(_logger, 1000)
+	serverSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), server, &ServerSession{})
+	clientSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), client, &ClientSession{})
 
 	if err := serverSession.Start(); err != nil {
 		t.Error(err)

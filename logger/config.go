@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"context"
 	"gonetlib/util"
 	"os"
 	"path/filepath"
@@ -199,11 +198,6 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 
 	return config
 }
-
-func (config *config) CreateLoggerWithContext(ctx context.Context) ILogger {
-	return CreateLoggerWithContext(*config, ctx)
-}
-
 func (config *config) CreateLogger() ILogger {
 	return CreateLogger(*config)
 }
