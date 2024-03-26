@@ -19,7 +19,6 @@ type ISession interface {
 }
 
 type ISessionHandler interface {
-	Init(logger.ILogger) error
 	OnConnect(ISession) error
 	OnDisconnect(ISession) error
 	OnRecv(ISession, *message.Message) error
@@ -68,11 +67,6 @@ func (session *Session) Setup(id uint64, conn net.Conn, handler ISessionHandler,
 	session.conn = conn
 	session.handler = handler
 	session.event = event
-
-	if handler != nil {
-		return handler.Init(session.logger)
-	}
-
 	return nil
 }
 
