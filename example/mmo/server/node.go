@@ -6,3 +6,9 @@ import "gonetlib/session"
 type Node struct {
 	session session.ISession
 }
+
+func CreateNode(session session.ISession) *Node {
+	return &Node{
+		session: session,
+	}
+}

@@ -14,6 +14,16 @@ type MMOServer struct {
 	logger   logger.ILogger
 	handlers PacketHandlers
 	count    int32
+
+	nodes map[uint64]*Node
+}
+
+func CreateMMOServer() *MMOServer {
+	return &MMOServer{
+		logger:   nil,
+		handlers: *CreatePacketHandlers(),
+		count:    0,
+	}
 }
 
 func (s *MMOServer) OnRun(logger logger.ILogger) error {
@@ -28,6 +38,10 @@ func (s *MMOServer) OnStop() error {
 }
 
 func (s *MMOServer) OnConnect(session session.ISession) error {
+	node := CreateNode(session)
+	s.nodes[session.GetID()] = node
+
+	//TODO:세션 접속했을 때 node 만들어서 session과 매핑하기
 	s.logger.Info("On connect session", logger.Why("id", session.GetID()))
 	util.InterlockIncrement(&s.count)
 	return nil
@@ -54,12 +68,20 @@ func (s *MMOServer) OnRecv(session session.ISession, packet *message.Message) er
 
 	//TODO:packet id로 packet handler 뽑기
 	handler := s.handlers.GetPacketHandler(packetId)
-	if handler != nil {
+	if handler == nil {
 		return fmt.Errorf("cannot found packet handler, packetId %d", packetId)
 	}
 
+	//TODO:시리얼라이저, context 만들기
+	//[]byte => struct (deserialize)
+
+	//struct => context
+	ctx := CreateContext(node)
+
 	//session의 생명 주기와 다른 node를 둔다.
 	task.New(func(i ...interface{}) (error, error) {
+		handler.Run(ctx)
+		node.wait <- true
 		//handler.Run(session)
 		return nil, nil
 	})
@@ -72,6 +94,55 @@ func (s *MMOServer) OnSend(session session.ISession, sentBytes []byte) error {
 }
 
 func (s *MMOServer) OnDisconnect(session session.ISession) error {
+	node := s.nodes[session.GetID()]
+
+	//waiting
+	node.ctx.wait()
+
+	node.session = nil
+
 	s.logger.Info("On disconnect session", logger.Why("id", session.GetID()))
 	return nil
+}
+
+// TODO:context에서 wait 어떻게 할 건지 고민 task wrapping??
+type Context[TRequest any] struct {
+	node    *Node
+	request TRequest
+	task    *Task
+}
+
+type RequestLogin struct {
+	id   uint64
+	name string
+}
+
+type LoginHandler struct {
+}
+
+func (h *LoginHandler) Run(ctx *Context[RequestLogin]) {
+
+	//ctx.request.id
+	//ctx.request.name
+
+	//TODO:좀더 좋은 방법 고민
+	ctx.task.async().await()
+
+	node.wg.add(2)
+	task.New(func(i ...interface{}) (string, error) {
+		defer func() {
+			node.wg.done()
+		}()
+
+		//DB 쿼리
+		result := DB.Query("select...")
+		return result
+	}, 1).Await(func(result string, err2 error) {
+		defer func() {
+			node.wg.done()
+		}()
+
+		//DB 응답
+		fmt.Println(result)
+	})
 }

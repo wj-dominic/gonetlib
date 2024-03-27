@@ -28,7 +28,7 @@ func main() {
 		MaxSession: 10000,
 	})
 	builder.Logger(_logger)
-	builder.Handler(&MMOServer{})
+	builder.Handler(CreateMMOServer())
 
 	server := builder.Build()
 	server.Run()
