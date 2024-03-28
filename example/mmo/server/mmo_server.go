@@ -5,24 +5,23 @@ import (
 	"gonetlib/logger"
 	"gonetlib/message"
 	"gonetlib/session"
-	"gonetlib/task"
 	"gonetlib/util"
 	"reflect"
+	"sync"
+	"time"
 )
 
 type MMOServer struct {
-	logger   logger.ILogger
-	handlers PacketHandlers
-	count    int32
+	logger logger.ILogger
+	count  int32
 
-	nodes map[uint64]*Node
+	nodes sync.Map
 }
 
 func CreateMMOServer() *MMOServer {
 	return &MMOServer{
-		logger:   nil,
-		handlers: *CreatePacketHandlers(),
-		count:    0,
+		logger: nil,
+		count:  0,
 	}
 }
 
@@ -39,15 +38,46 @@ func (s *MMOServer) OnStop() error {
 
 func (s *MMOServer) OnConnect(session session.ISession) error {
 	node := CreateNode(session)
-	s.nodes[session.GetID()] = node
+	s.addNode(session.GetID(), node)
 
-	//TODO:세션 접속했을 때 node 만들어서 session과 매핑하기
 	s.logger.Info("On connect session", logger.Why("id", session.GetID()))
 	util.InterlockIncrement(&s.count)
 	return nil
 }
 
+func (s *MMOServer) addNode(sessionID uint64, node INode) error {
+	if _, loaded := s.nodes.LoadOrStore(sessionID, node); loaded == true {
+		return fmt.Errorf("already has same node in container | sessionID[%d]", sessionID)
+	}
+
+	return nil
+}
+
+func (s *MMOServer) getNode(sessionID uint64) (INode, error) {
+	node, exist := s.nodes.Load(sessionID)
+	if exist == false {
+		return nil, fmt.Errorf("there is no node in container | sessionID[%d]", sessionID)
+	}
+
+	return node.(INode), nil
+}
+
+func (s *MMOServer) removeNode(sessionID uint64) error {
+	if _, err := s.getNode(sessionID); err != nil {
+		return err
+	}
+
+	s.nodes.Delete(sessionID)
+	return nil
+}
+
 func (s *MMOServer) OnRecv(session session.ISession, packet *message.Message) error {
+	node, err := s.getNode(session.GetID())
+	if err != nil {
+		s.logger.Error("Failed to get node from on recv", logger.Why("error", err.Error()))
+		return err
+	}
+
 	var packetId uint16
 	var payloadSize uint16
 
@@ -66,25 +96,23 @@ func (s *MMOServer) OnRecv(session session.ISession, packet *message.Message) er
 		return fmt.Errorf("not matched payload size with packet size, payloadSize %d > packetSize %d", payloadSize, packet.GetPayloadSize())
 	}
 
-	//TODO:packet id로 packet handler 뽑기
-	handler := s.handlers.GetPacketHandler(packetId)
+	_packer := GetPacker(packetId)
+	_packer.Unpack(packet)
+
+	ctx := CreateContext(node, _packer.GetData())
+	node.SetContext(ctx)
+
+	handler := GetPacketHandler(packetId)
 	if handler == nil {
 		return fmt.Errorf("cannot found packet handler, packetId %d", packetId)
 	}
 
-	//TODO:시리얼라이저, context 만들기
-	//[]byte => struct (deserialize)
-
-	//struct => context
-	ctx := CreateContext(node)
-
-	//session의 생명 주기와 다른 node를 둔다.
-	task.New(func(i ...interface{}) (error, error) {
-		handler.Run(ctx)
-		node.wait <- true
-		//handler.Run(session)
+	//0번 고루틴에서 핸들러를 동작하게 한다.
+	ctx.Async(func(i ...interface{}) (interface{}, error) {
+		handler := i[0].(IPacketHandler)
+		handler(ctx)
 		return nil, nil
-	})
+	}, 0).Start(handler)
 
 	return nil
 }
@@ -94,22 +122,21 @@ func (s *MMOServer) OnSend(session session.ISession, sentBytes []byte) error {
 }
 
 func (s *MMOServer) OnDisconnect(session session.ISession) error {
-	node := s.nodes[session.GetID()]
+	node, err := s.getNode(session.GetID())
+	if err != nil {
+		s.logger.Error("Failed to get node from on disconnect", logger.Why("error", err.Error()))
+		return err
+	}
 
-	//waiting
-	node.ctx.wait()
+	//task가 끝날 때까지 대기하기
+	//이미 종료하는 상황이기 때문에 해당 세션을 담당하는 고루틴은 대기해도 된다.
+	node.Wait()
 
-	node.session = nil
+	node.Clear()
+	s.removeNode(session.GetID())
 
 	s.logger.Info("On disconnect session", logger.Why("id", session.GetID()))
 	return nil
-}
-
-// TODO:context에서 wait 어떻게 할 건지 고민 task wrapping??
-type Context[TRequest any] struct {
-	node    *Node
-	request TRequest
-	task    *Task
 }
 
 type RequestLogin struct {
@@ -117,32 +144,32 @@ type RequestLogin struct {
 	name string
 }
 
-type LoginHandler struct {
+type ResponseLogin struct {
+	result  uint8
+	message string
 }
 
-func (h *LoginHandler) Run(ctx *Context[RequestLogin]) {
+func RequestLoginHandler(ctx IPacketContext) {
+	//패킷 데이터 참조하기
+	request := ctx.GetPacket().(RequestLogin)
+	fmt.Println(request.id)
+	fmt.Println(request.name)
 
-	//ctx.request.id
-	//ctx.request.name
-
-	//TODO:좀더 좋은 방법 고민
-	ctx.task.async().await()
-
-	node.wg.add(2)
-	task.New(func(i ...interface{}) (string, error) {
-		defer func() {
-			node.wg.done()
-		}()
-
-		//DB 쿼리
-		result := DB.Query("select...")
-		return result
-	}, 1).Await(func(result string, err2 error) {
-		defer func() {
-			node.wg.done()
-		}()
-
-		//DB 응답
+	//비동기 작업 요청하기
+	ctx.Async(func(i ...interface{}) (interface{}, error) {
+		//실제로 수행되는 비동기 작업
+		time.Sleep(time.Second * 5)
+		return i[0].(int) + i[1].(int), nil
+	}).Await(func(result interface{}, err error) {
+		//비동기 끝나고 호출되는 콜백
 		fmt.Println(result)
-	})
+
+		response := ResponseLogin{
+			result:  0,
+			message: "hello world!",
+		}
+
+		//노드 획득 후 사용하기
+		ctx.GetNode().Send(response)
+	}).Start(1, 2)
 }

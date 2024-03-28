@@ -1,32 +1,19 @@
 package mmo_server
 
-import "gonetlib/message"
+type IPacketHandler func(IPacketContext)
 
-type IPacketHandler interface {
-	Init(message.Message)
-	Run(Node)
-}
+var handlers map[uint16]IPacketHandler = make(map[uint16]IPacketHandler)
 
-type PacketHandlers struct {
-	handlers map[uint16]IPacketHandler
-}
-
-func CreatePacketHandlers() *PacketHandlers {
-	return &PacketHandlers{
-		handlers: make(map[uint16]IPacketHandler),
+func AddPacketHandler(id uint16, handler IPacketHandler) {
+	if _, exist := handlers[id]; exist == false {
+		handlers[id] = handler
 	}
 }
 
-func (h *PacketHandlers) AddPacketHandler(id uint16, handler IPacketHandler) {
-	if _, exist := h.handlers[id]; exist == false {
-		h.handlers[id] = handler
-	}
-}
-
-func (h *PacketHandlers) GetPacketHandler(id uint16) IPacketHandler {
-	if _, exist := h.handlers[id]; exist == false {
+func GetPacketHandler(id uint16) IPacketHandler {
+	if _, exist := handlers[id]; exist == false {
 		return nil
 	}
 
-	return h.handlers[id]
+	return handlers[id]
 }
