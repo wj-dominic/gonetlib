@@ -1,30 +1,29 @@
 package mmo_server
 
 import (
+	"gonetlib/message"
 	"gonetlib/task"
 	"math/rand"
 	"sync"
 )
 
-// /////////////////////////////////////////////////////////////////////////////////////////////////
-// packet context task
-// /////////////////////////////////////////////////////////////////////////////////////////////////
+// IPacketContextTask ...
 type IPacketContextTask interface {
-	Await(func(interface{}, error)) IPacketContextTask
+	Await(func(result interface{}, err error)) IPacketContextTask
 	Start(...interface{})
 }
 
 type PacketContextTask[Out any] struct {
-	ctx *PacketContext
+	wg  *sync.WaitGroup
 	job task.ITask[Out]
 }
 
 func (task *PacketContextTask[Out]) Await(job func(interface{}, error)) IPacketContextTask {
-	if task.ctx != nil && task.job != nil {
-		task.ctx.wg.Add(1)
+	if task.wg != nil && task.job != nil {
+		task.wg.Add(1)
 		task.job.Await(func(o Out, err error) {
 			defer func() {
-				task.ctx.wg.Done()
+				task.wg.Done()
 			}()
 
 			job(o, err)
@@ -35,44 +34,74 @@ func (task *PacketContextTask[Out]) Await(job func(interface{}, error)) IPacketC
 }
 
 func (task *PacketContextTask[Out]) Start(i ...interface{}) {
-	if task.ctx != nil && task.job != nil {
+	if task.job != nil {
 		task.job.Start(i...)
 	}
 }
 
-// /////////////////////////////////////////////////////////////////////////////////////////////////
-// packet context
-// /////////////////////////////////////////////////////////////////////////////////////////////////s
+// IPacketContext ...
 type IPacketContext interface {
-	GetNode() INode
-	GetPacket() interface{}
-	Async(func(...interface{}) (interface{}, error), ...uint8) IPacketContextTask
+	SetNode(INode)
+	UnPack(*message.Message) error
+	RunHandler(...uint8)
+	Async(func(params ...interface{}) (interface{}, error), ...uint8) IPacketContextTask
 	Wait()
 }
 
-type PacketContext struct {
-	node   INode
-	packet interface{}
-	wg     sync.WaitGroup
+// PacketContextTwoWay ...
+type PacketContextTwoWay[TRequest any, TResponse any] struct {
+	node     INode
+	Request  TRequest
+	Response TResponse
+	wg       sync.WaitGroup
+	handler  func(*PacketContextTwoWay[TRequest, TResponse]) error
 }
 
-func CreateContext(node INode, packet interface{}) IPacketContext {
-	return &PacketContext{
-		node:   node,
-		packet: packet,
-		wg:     sync.WaitGroup{},
+func CreatePacketContextTwoWay[TRequest any, TResponse any](handler func(*PacketContextTwoWay[TRequest, TResponse]) error) IPacketContext {
+	return &PacketContextTwoWay[TRequest, TResponse]{
+		node:    nil,
+		handler: handler,
+		wg:      sync.WaitGroup{},
 	}
 }
 
-func (ctx *PacketContext) GetNode() INode {
-	return ctx.node
+func (ctx *PacketContextTwoWay[TRequest, TResponse]) SetNode(node INode) {
+	ctx.node = node
 }
 
-func (ctx *PacketContext) GetPacket() interface{} {
-	return ctx.packet
+func (ctx *PacketContextTwoWay[TRequest, TResponse]) Send(message interface{}) {
+	ctx.node.Send(message)
 }
 
-func (ctx *PacketContext) Async(job func(...interface{}) (interface{}, error), numOfThread ...uint8) IPacketContextTask {
+func (ctx *PacketContextTwoWay[TRequest, TResponse]) SendResponse() {
+	ctx.node.Send(ctx.Response)
+}
+
+func (ctx *PacketContextTwoWay[TRequest, TResponse]) UnPack(packet *message.Message) error {
+	packet.Pop(&ctx.Request)
+	return nil
+}
+
+func (ctx *PacketContextTwoWay[TRequest, TResponse]) RunHandler(numOfThread ...uint8) {
+	_numOfThread := uint8(rand.Intn(7) + 1)
+	if len(numOfThread) > 0 {
+		_numOfThread = numOfThread[0]
+	}
+
+	ctx.wg.Add(1)
+	job := task.New(func(i ...interface{}) (error, error) {
+		defer func() {
+			ctx.wg.Done()
+		}()
+
+		err := ctx.handler(ctx)
+		return err, nil
+	}, _numOfThread)
+
+	job.Start()
+}
+
+func (ctx *PacketContextTwoWay[TRequest, TResponse]) Async(job func(...interface{}) (interface{}, error), numOfThread ...uint8) IPacketContextTask {
 	_numOfThread := uint8(rand.Intn(7) + 1)
 	if len(numOfThread) > 0 {
 		_numOfThread = numOfThread[0]
@@ -88,11 +117,60 @@ func (ctx *PacketContext) Async(job func(...interface{}) (interface{}, error), n
 	}, _numOfThread)
 
 	return &PacketContextTask[interface{}]{
-		ctx: ctx,
+		wg:  &ctx.wg,
 		job: _job,
 	}
 }
 
-func (ctx *PacketContext) Wait() {
+func (ctx *PacketContextTwoWay[TRequest, TResponse]) Wait() {
 	ctx.wg.Wait()
+}
+
+// PacketContextOneWay ...
+type emptyResponse struct{}
+
+type PacketContextOneWay[TRequest any] struct {
+	PacketContextTwoWay[TRequest, emptyResponse]
+}
+
+func CreatePacketContextOneWay[TRequest any](handler func(*PacketContextOneWay[TRequest]) error) IPacketContext {
+	ctx := &PacketContextOneWay[TRequest]{
+		PacketContextTwoWay[TRequest, emptyResponse]{
+			node:    nil,
+			handler: nil,
+			wg:      sync.WaitGroup{},
+		},
+	}
+
+	_handler := func(twoWayContext *PacketContextTwoWay[TRequest, emptyResponse]) error {
+		return handler(ctx)
+	}
+
+	ctx.handler = _handler
+	return ctx
+}
+
+func (ctx *PacketContextOneWay[TRequest]) SetNode(node INode) {
+	ctx.PacketContextTwoWay.SetNode(node)
+}
+
+func (ctx *PacketContextOneWay[TRequest]) Send(message interface{}) {
+	ctx.PacketContextTwoWay.Send(message)
+}
+
+func (ctx *PacketContextOneWay[TRequest]) UnPack(packet *message.Message) error {
+	ctx.PacketContextTwoWay.UnPack(packet)
+	return nil
+}
+
+func (ctx *PacketContextOneWay[TRequest]) RunHandler(numOfThread ...uint8) {
+	ctx.PacketContextTwoWay.RunHandler(numOfThread...)
+}
+
+func (ctx *PacketContextOneWay[TRequest]) Async(job func(...interface{}) (interface{}, error), numOfThread ...uint8) IPacketContextTask {
+	return ctx.PacketContextTwoWay.Async(job, numOfThread...)
+}
+
+func (ctx *PacketContextOneWay[TRequest]) Wait() {
+	ctx.PacketContextTwoWay.Wait()
 }

@@ -2,8 +2,6 @@ package mmo_server
 
 import "gonetlib/session"
 
-//TODO:node 세션 1:1 매핑 작업 필요
-
 type INode interface {
 	Send(interface{})
 	SetContext(IPacketContext)

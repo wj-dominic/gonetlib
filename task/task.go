@@ -25,10 +25,10 @@ type Task[Out any] struct {
 func (t *Task[Out]) Start(params ...interface{}) ITask[Out] {
 	f := func(threadId uint8) bool {
 		defer func() {
-			fmt.Printf("end job | thread id %d\n", threadId)
+			fmt.Printf("end async job | thread id %d\n", threadId)
 		}()
 
-		fmt.Printf("begin job | thread id %d\n", threadId)
+		fmt.Printf("begin async job | thread id %d\n", threadId)
 
 		result, err := t.job(params...)
 

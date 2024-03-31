@@ -8,7 +8,6 @@ import (
 	"gonetlib/util"
 	"reflect"
 	"sync"
-	"time"
 )
 
 type MMOServer struct {
@@ -78,41 +77,36 @@ func (s *MMOServer) OnRecv(session session.ISession, packet *message.Message) er
 		return err
 	}
 
-	var packetId uint16
-	var payloadSize uint16
+	header := PacketHeader{}
+	headerSize := uint16(util.Sizeof(reflect.ValueOf(header)))
 
-	headerSize := uint16(util.Sizeof(reflect.ValueOf(packetId)) + util.Sizeof(reflect.ValueOf(payloadSize)))
+	packet.Peek(&header)
 
-	packet.Peek(&packetId)
-	packet.Peek(&payloadSize)
-
-	if packet.GetPayloadSize() < headerSize+payloadSize {
-		return fmt.Errorf("payload size grater then packet size, payloadSize %d > packetSize %d", headerSize+payloadSize, packet.GetPayloadSize())
+	if packet.GetPayloadSize() < headerSize+header.Length {
+		return fmt.Errorf("payload size grater then packet size, payloadSize %d > packetSize %d", headerSize+header.Length, packet.GetPayloadSize())
 	}
 
 	packet.MoveFront(headerSize)
 
-	if packet.GetPayloadSize() != payloadSize {
-		return fmt.Errorf("not matched payload size with packet size, payloadSize %d > packetSize %d", payloadSize, packet.GetPayloadSize())
+	if packet.GetPayloadSize() != header.Length {
+		return fmt.Errorf("not matched payload size with packet size, payloadSize %d > packetSize %d", header.Length, packet.GetPayloadSize())
 	}
 
-	_packer := GetPacker(packetId)
-	_packer.Unpack(packet)
+	ctx, err := GetPacketContext(header.Id)
+	if err != nil {
+		s.logger.Error("Failed to get packet context", logger.Why("packetId", header.Id), logger.Why("sessionId", session.GetID()))
+		return err
+	}
 
-	ctx := CreateContext(node, _packer.GetData())
+	if err = ctx.UnPack(packet); err != nil {
+		s.logger.Error("Failed to unpack from packet", logger.Why("packetId", header.Id), logger.Why("sessionId", session.GetID()))
+		return err
+	}
+
+	ctx.SetNode(node)
 	node.SetContext(ctx)
 
-	handler := GetPacketHandler(packetId)
-	if handler == nil {
-		return fmt.Errorf("cannot found packet handler, packetId %d", packetId)
-	}
-
-	//0번 고루틴에서 핸들러를 동작하게 한다.
-	ctx.Async(func(i ...interface{}) (interface{}, error) {
-		handler := i[0].(IPacketHandler)
-		handler(ctx)
-		return nil, nil
-	}, 0).Start(handler)
+	ctx.RunHandler(0)
 
 	return nil
 }
@@ -137,39 +131,4 @@ func (s *MMOServer) OnDisconnect(session session.ISession) error {
 
 	s.logger.Info("On disconnect session", logger.Why("id", session.GetID()))
 	return nil
-}
-
-type RequestLogin struct {
-	id   uint64
-	name string
-}
-
-type ResponseLogin struct {
-	result  uint8
-	message string
-}
-
-func RequestLoginHandler(ctx IPacketContext) {
-	//패킷 데이터 참조하기
-	request := ctx.GetPacket().(RequestLogin)
-	fmt.Println(request.id)
-	fmt.Println(request.name)
-
-	//비동기 작업 요청하기
-	ctx.Async(func(i ...interface{}) (interface{}, error) {
-		//실제로 수행되는 비동기 작업
-		time.Sleep(time.Second * 5)
-		return i[0].(int) + i[1].(int), nil
-	}).Await(func(result interface{}, err error) {
-		//비동기 끝나고 호출되는 콜백
-		fmt.Println(result)
-
-		response := ResponseLogin{
-			result:  0,
-			message: "hello world!",
-		}
-
-		//노드 획득 후 사용하기
-		ctx.GetNode().Send(response)
-	}).Start(1, 2)
 }
