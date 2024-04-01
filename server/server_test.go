@@ -14,37 +14,29 @@ import (
 	"time"
 )
 
-type EchoServer struct {
+type TestServer struct {
 	logger logger.ILogger
 	count  int32
 }
 
-func (s *EchoServer) OnRun(logger logger.ILogger) error {
+func (s *TestServer) OnRun(logger logger.ILogger) error {
 	s.logger = logger
 	s.count = 0
 	return nil
 }
 
-func (s *EchoServer) OnStop() error {
+func (s *TestServer) OnStop() error {
 	s.logger.Info("Connected session count", logger.Why("count", s.count))
 	return nil
 }
 
-type EchoSession struct {
-	EchoServer
-}
-
-func (h *EchoSession) Init(logger logger.ILogger) error {
+func (s *TestServer) OnConnect(session session.ISession) error {
+	s.logger.Info("On connect session", logger.Why("id", session.GetID()))
+	util.InterlockIncrement(&s.count)
 	return nil
 }
 
-func (h *EchoSession) OnConnect(session session.ISession) error {
-	h.logger.Info("On connect session", logger.Why("id", session.GetID()))
-	util.InterlockIncrement(&h.count)
-	return nil
-}
-
-func (h *EchoSession) OnRecv(session session.ISession, packet *message.Message) error {
+func (s *TestServer) OnRecv(session session.ISession, packet *message.Message) error {
 	var msg string
 	var id int
 	packet.Pop(&msg)
@@ -54,16 +46,16 @@ func (h *EchoSession) OnRecv(session session.ISession, packet *message.Message) 
 	sb.WriteString(msg)
 	sb.WriteString(strconv.Itoa(id))
 
-	h.logger.Info("On recv session", logger.Why("id", session.GetID()), logger.Why("msg", sb.String()))
+	s.logger.Info("On recv session", logger.Why("id", session.GetID()), logger.Why("msg", sb.String()))
 	return nil
 }
 
-func (h *EchoSession) OnSend(session session.ISession, sentBytes []byte) error {
+func (s *TestServer) OnSend(session session.ISession, sentBytes []byte) error {
 	return nil
 }
 
-func (h *EchoSession) OnDisconnect(session session.ISession) error {
-	h.logger.Info("On disconnect session", logger.Why("id", session.GetID()))
+func (s *TestServer) OnDisconnect(session session.ISession) error {
+	s.logger.Info("On disconnect session", logger.Why("id", session.GetID()))
 	return nil
 }
 
@@ -87,7 +79,7 @@ func TestSever(t *testing.T) {
 		MaxSession: 10000,
 	})
 	builder.Logger(_logger)
-	builder.Handler(&EchoSession{})
+	builder.Handler(&TestServer{})
 
 	server := builder.Build()
 	server.Run()

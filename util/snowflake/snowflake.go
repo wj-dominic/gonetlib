@@ -17,8 +17,8 @@ var (
 )
 
 func GenerateID(machineID int64) uint64 {
-	// defer lock.Unlock()
-	// lock.Lock()
+	defer lock.Unlock()
+	lock.Lock()
 
 	generatedID := uint64(0)
 
