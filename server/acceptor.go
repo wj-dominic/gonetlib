@@ -2,6 +2,7 @@ package server
 
 import (
 	"gonetlib/logger"
+	"gonetlib/util/network"
 	"net"
 	"sync"
 )
@@ -25,14 +26,14 @@ type Acceptor struct {
 	listener   net.Listener
 	packetConn net.PacketConn
 
-	protocols    Protocol
-	endpoint     Endpoint
+	protocols    network.Protocol
+	endpoint     network.Endpoint
 	listenConfig net.ListenConfig
 	handler      IAcceptHandler
 	wg           sync.WaitGroup
 }
 
-func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint, handler IAcceptHandler) IAcceptor {
+func CreateAcceptor(logger logger.ILogger, protocols network.Protocol, endpoint network.Endpoint, handler IAcceptHandler) IAcceptor {
 	return &Acceptor{
 		logger:     logger,
 		listener:   nil,
@@ -48,7 +49,7 @@ func CreateAcceptor(logger logger.ILogger, protocols Protocol, endpoint Endpoint
 }
 
 func (a *Acceptor) Start() error {
-	if (a.protocols & TCP) == TCP {
+	if (a.protocols & network.TCP) == network.TCP {
 		listener, err := net.Listen("tcp", a.endpoint.ToString())
 		if err != nil {
 			return err
@@ -60,7 +61,7 @@ func (a *Acceptor) Start() error {
 		go a.waitForTCPConn()
 	}
 
-	if (a.protocols & UDP) == UDP {
+	if (a.protocols & network.UDP) == network.UDP {
 		conn, err := net.ListenPacket("udp", a.endpoint.ToString())
 		if err != nil {
 			return err

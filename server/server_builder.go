@@ -2,6 +2,7 @@ package server
 
 import (
 	"gonetlib/logger"
+	"gonetlib/util/network"
 )
 
 type IServerBuilder interface {
@@ -20,9 +21,9 @@ type serverBuilder struct {
 func CreateServerBuilder() IServerBuilder {
 	return &serverBuilder{
 		config: ServerInfo{
-			Address:    Endpoint{IP: "0.0.0.0", Port: 50000},
+			Address:    network.Endpoint{IP: "0.0.0.0", Port: 50000},
 			MaxSession: 100,
-			Protocols:  TCP,
+			Protocols:  network.TCP,
 		},
 	}
 }

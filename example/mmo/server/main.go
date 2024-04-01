@@ -3,6 +3,7 @@ package mmo_server
 import (
 	"gonetlib/logger"
 	"gonetlib/server"
+	"gonetlib/util/network"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,8 +24,8 @@ func main() {
 	builder := server.CreateServerBuilder()
 	builder.Configuration(server.ServerInfo{
 		Id:         1,
-		Address:    server.Endpoint{IP: "0.0.0.0", Port: 50000},
-		Protocols:  server.TCP | server.UDP,
+		Address:    network.Endpoint{IP: "0.0.0.0", Port: 50000},
+		Protocols:  network.TCP | network.UDP,
 		MaxSession: 10000,
 	})
 	builder.Logger(_logger)

@@ -1,15 +1,12 @@
 package server
 
-type Protocol byte
-
-const (
-	TCP Protocol = 1
-	UDP          = iota << 1
+import (
+	"gonetlib/util/network"
 )
 
 type ServerInfo struct {
 	Id         uint16
-	Address    Endpoint
-	Protocols  Protocol
+	Address    network.Endpoint
+	Protocols  network.Protocol
 	MaxSession uint32
 }
