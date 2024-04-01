@@ -6,5 +6,5 @@ import (
 
 type ClientInfo struct {
 	ServerAddress network.Endpoint
-	Protocol      network.Protocol
+	Protocols     network.Protocol
 }

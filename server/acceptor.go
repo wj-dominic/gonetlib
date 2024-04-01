@@ -26,11 +26,10 @@ type Acceptor struct {
 	listener   net.Listener
 	packetConn net.PacketConn
 
-	protocols    network.Protocol
-	endpoint     network.Endpoint
-	listenConfig net.ListenConfig
-	handler      IAcceptHandler
-	wg           sync.WaitGroup
+	protocols network.Protocol
+	endpoint  network.Endpoint
+	handler   IAcceptHandler
+	wg        sync.WaitGroup
 }
 
 func CreateAcceptor(logger logger.ILogger, protocols network.Protocol, endpoint network.Endpoint, handler IAcceptHandler) IAcceptor {
@@ -39,10 +38,9 @@ func CreateAcceptor(logger logger.ILogger, protocols network.Protocol, endpoint 
 		listener:   nil,
 		packetConn: nil,
 
-		protocols:    protocols,
-		endpoint:     endpoint,
-		listenConfig: net.ListenConfig{},
-		handler:      handler,
+		protocols: protocols,
+		endpoint:  endpoint,
+		handler:   handler,
 
 		wg: sync.WaitGroup{},
 	}
