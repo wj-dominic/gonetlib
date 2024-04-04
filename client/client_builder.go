@@ -5,11 +5,11 @@ import (
 	"gonetlib/util/network"
 )
 
-type IClientBuilder interface {
-	Configuration(ClientInfo) IClientBuilder
-	Logger(logger.ILogger) IClientBuilder
-	Handler(IClientHandler) IClientBuilder
-	Build() IClient
+type ClientBuilder interface {
+	Configuration(ClientInfo) ClientBuilder
+	Logger(logger.ILogger) ClientBuilder
+	Handler(IClientHandler) ClientBuilder
+	Build() Client
 }
 
 type clientBuilder struct {
@@ -18,7 +18,7 @@ type clientBuilder struct {
 	logger  logger.ILogger
 }
 
-func CreateClientBuilder() IClientBuilder {
+func NewClientBuilder() ClientBuilder {
 	return &clientBuilder{
 		config: ClientInfo{
 			ServerAddress: network.Endpoint{IP: "127.0.0.1", Port: 50000},
@@ -27,22 +27,22 @@ func CreateClientBuilder() IClientBuilder {
 	}
 }
 
-func (builder *clientBuilder) Configuration(config ClientInfo) IClientBuilder {
+func (builder *clientBuilder) Configuration(config ClientInfo) ClientBuilder {
 	builder.config.ServerAddress = config.ServerAddress
 	builder.config.Protocols = config.Protocols
 	return builder
 }
 
-func (builder *clientBuilder) Logger(logger logger.ILogger) IClientBuilder {
+func (builder *clientBuilder) Logger(logger logger.ILogger) ClientBuilder {
 	builder.logger = logger
 	return builder
 }
 
-func (builder *clientBuilder) Handler(handler IClientHandler) IClientBuilder {
+func (builder *clientBuilder) Handler(handler IClientHandler) ClientBuilder {
 	builder.handler = handler
 	return builder
 }
 
-func (builder *clientBuilder) Build() IClient {
+func (builder *clientBuilder) Build() Client {
 	return newClient(builder.logger, builder.config, builder.handler)
 }

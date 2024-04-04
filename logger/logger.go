@@ -149,6 +149,10 @@ var _logger ILogger = CreateLoggerConfig().
 	}).
 	CreateLogger()
 
+func Default() ILogger {
+	return _logger
+}
+
 func Debug(message string, fields ...Field) {
 	_logger.Debug(message, fields...)
 }

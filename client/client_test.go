@@ -46,7 +46,7 @@ func TestClient(t *testing.T) {
 		TickDuration(1000)
 	_logger := config.CreateLogger()
 
-	builder := client.CreateClientBuilder()
+	builder := client.NewClientBuilder()
 	builder.Configuration(client.ClientInfo{
 		ServerAddress: network.Endpoint{IP: "127.0.0.1", Port: 50000},
 		Protocols:     network.TCP | network.UDP,

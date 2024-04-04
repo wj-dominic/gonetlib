@@ -26,7 +26,7 @@ func CreateSessionManager(logger logger.ILogger, limit uint32) *SessionManager {
 		logger: logger,
 		pool: sync.Pool{
 			New: func() interface{} {
-				return newTcpSession(logger)
+				return NewTcpSession(logger)
 			},
 		},
 		sessions:   sync.Map{},

@@ -20,7 +20,7 @@ type TCPSession struct {
 	sendChannel chan []byte
 }
 
-func newTcpSession(logger logger.ILogger) ISession {
+func NewTcpSession(logger logger.ILogger) ISession {
 	return &TCPSession{
 		Session:     newSession(logger),
 		recvBuffer:  ringbuffer.NewRingBuffer(true),
