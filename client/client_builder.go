@@ -13,23 +13,33 @@ type ClientBuilder interface {
 }
 
 type clientBuilder struct {
-	config  ClientInfo
+	info    ClientInfo
 	handler IClientHandler
 	logger  logger.ILogger
 }
 
 func NewClientBuilder() ClientBuilder {
 	return &clientBuilder{
-		config: ClientInfo{
+		info: ClientInfo{
 			ServerAddress: network.Endpoint{IP: "127.0.0.1", Port: 50000},
 			Protocols:     network.TCP,
+			ConnectorInfo: DefaultConnectorInfo(),
 		},
 	}
 }
 
-func (builder *clientBuilder) Configuration(config ClientInfo) ClientBuilder {
-	builder.config.ServerAddress = config.ServerAddress
-	builder.config.Protocols = config.Protocols
+func (builder *clientBuilder) Configuration(info ClientInfo) ClientBuilder {
+	builder.info.ServerAddress = info.ServerAddress
+	builder.info.Protocols = info.Protocols
+
+	if info.reconnectDuration != 0 {
+		builder.info.reconnectDuration = info.reconnectDuration
+	}
+
+	if info.reconnectLimit != 0 {
+		builder.info.reconnectLimit = info.reconnectLimit
+	}
+
 	return builder
 }
 
@@ -44,5 +54,5 @@ func (builder *clientBuilder) Handler(handler IClientHandler) ClientBuilder {
 }
 
 func (builder *clientBuilder) Build() Client {
-	return newClient(builder.logger, builder.config, builder.handler)
+	return newClient(builder.logger, builder.info, builder.handler)
 }

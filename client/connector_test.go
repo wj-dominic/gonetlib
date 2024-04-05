@@ -17,7 +17,7 @@ func (handler *ConnectHandler) OnConnect(protocol network.Protocol, conn net.Con
 }
 
 func TestConnector(t *testing.T) {
-	connector := client.NewTcpConnector(logger.Default(), network.Endpoint{IP: "127.0.0.1", Port: 50000}, &ConnectHandler{})
+	connector := client.NewTcpConnector(logger.Default(), network.Endpoint{IP: "127.0.0.1", Port: 50000}, &ConnectHandler{}, client.DefaultConnectorInfo())
 	connector.Start()
 
 	time.Sleep(time.Second * 5)

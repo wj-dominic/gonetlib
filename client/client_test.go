@@ -7,6 +7,7 @@ import (
 	"gonetlib/session"
 	"gonetlib/util/network"
 	"testing"
+	"time"
 )
 
 type EchoClient struct {
@@ -42,18 +43,21 @@ func TestClient(t *testing.T) {
 			logger.WriteToFile{
 				Filepath: "./EchoClient.log",
 			}).
-		MinimumLevel(logger.DebugLevel).
-		TickDuration(1000)
-	_logger := config.CreateLogger()
+		MinimumLevel(logger.DebugLevel)
+	logger := config.CreateLogger()
 
 	builder := client.NewClientBuilder()
 	builder.Configuration(client.ClientInfo{
 		ServerAddress: network.Endpoint{IP: "127.0.0.1", Port: 50000},
 		Protocols:     network.TCP | network.UDP,
 	})
-	builder.Logger(_logger)
+	builder.Logger(logger)
 	builder.Handler(&EchoClient{})
 
 	client := builder.Build()
 	client.Run()
+
+	time.Sleep(time.Second * 10)
+
+	client.Stop()
 }

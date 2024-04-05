@@ -12,7 +12,8 @@ import (
 type RollingInterval uint8
 
 const (
-	RollingIntervalInfinite RollingInterval = 0 + iota
+	RollingIntervalInvalid RollingInterval = 0 + iota
+	RollingIntervalInfinite
 	RollingIntervalYear
 	RollingIntervalMonth
 	RollingIntervalDay
@@ -188,7 +189,9 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 		config.writeToFile.Filepath = option.Filepath
 	}
 
-	if option.RollingInterval <= RollingIntervalMonth && config.writeToFile.RollingInterval != option.RollingInterval {
+	if option.RollingInterval <= RollingIntervalMinute &&
+		option.RollingInterval > RollingIntervalInvalid &&
+		config.writeToFile.RollingInterval != option.RollingInterval {
 		config.writeToFile.RollingInterval = option.RollingInterval
 	}
 
