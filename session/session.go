@@ -81,8 +81,10 @@ func (session *Session) acquire(force ...bool) bool {
 
 	if util.InterlockIncrement(&session.releaseFlag.refCount) == 1 {
 		//다른 곳에서 release 중일 수 있으므로 1이면 획득 불가
-		if force[0] == true {
-			return true
+		if len(force) > 0 {
+			if force[0] == true {
+				return true
+			}
 		}
 
 		return false

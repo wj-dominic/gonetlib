@@ -66,7 +66,7 @@ func (c *client) Run() bool {
 		}
 	}
 
-	c.logger.Info("Success to start client")
+	c.logger.Info("Success to run client")
 	return true
 }
 
@@ -106,6 +106,8 @@ func (c *client) OnConnect(protocol network.Protocol, conn net.Conn) {
 			network.Protocol
 			session.ISession
 		}{network.TCP, tcpSession})
+
+		tcpSession.Start()
 	}
 
 	if network.IsUDP(protocol) == true {

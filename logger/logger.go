@@ -2,7 +2,6 @@ package logger
 
 import (
 	"fmt"
-	"gonetlib/util"
 	"os"
 	"strings"
 	"sync"
@@ -19,17 +18,18 @@ type ILogger interface {
 }
 
 type Logger struct {
-	config     config
-	logs       chan Log
-	wg         sync.WaitGroup
-	isDisposed int32
+	config         config
+	logs           chan Log
+	wg             sync.WaitGroup
+	shouldDisposed atomic.Bool
+	isDisposed     atomic.Bool
+	isUsed         atomic.Bool
 }
 
 func CreateLogger(config config) ILogger {
 	logger := &Logger{
-		config:     config,
-		logs:       make(chan Log),
-		isDisposed: 0,
+		config: config,
+		logs:   make(chan Log),
 	}
 
 	logger.wg.Add(1)
@@ -52,7 +52,12 @@ func (logger *Logger) Error(message string, fields ...Field) {
 }
 
 func (logger *Logger) Dispose() {
-	if util.InterlockedCompareExchange(&logger.isDisposed, 1, 0) == false {
+	if logger.isDisposed.CompareAndSwap(false, true) == false {
+		return
+	}
+
+	if logger.isDisposed.CompareAndSwap(logger.isUsed.Load(), false) == true {
+		logger.shouldDisposed.Store(true)
 		return
 	}
 
@@ -61,7 +66,15 @@ func (logger *Logger) Dispose() {
 }
 
 func (logger *Logger) log(level Level, message string, fields ...Field) {
-	if atomic.LoadInt32(&logger.isDisposed) == 1 {
+	defer func() {
+		logger.isUsed.Store(false)
+		if logger.shouldDisposed.Load() == true {
+			logger.Dispose()
+		}
+	}()
+
+	logger.isUsed.Store(true)
+	if logger.isDisposed.Load() == true {
 		return
 	}
 
