@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"gonetlib/logger"
+	"gonetlib/monitoring"
 	"gonetlib/util"
 	"net"
 	"sync"
@@ -12,6 +13,7 @@ import (
 type ISessionManager interface {
 	NewSession(uint64, net.Conn, ISessionHandler) (ISession, error)
 	Dispose()
+	monitoring.Collector[interface{}]
 }
 
 type SessionManager struct {
@@ -83,4 +85,19 @@ func (s *SessionManager) OnRelease(sessionID uint64, session ISession) {
 
 	//세션 풀에 삽입
 	s.pool.Put(session)
+}
+
+func (s *SessionManager) Collect() (interface{}, error) {
+	monitoringData := monitoring.SessionMonitoringData{}
+
+	s.sessions.Range(func(key, value any) bool {
+		session := value.(ISession)
+
+		monitoringData.ActiveSessions++
+		monitoringData.Add(session.SessionMonitoringData())
+
+		return true
+	})
+
+	return monitoringData, nil
 }
