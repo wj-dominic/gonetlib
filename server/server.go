@@ -31,12 +31,12 @@ func newServer(logger logger.ILogger, info ServerInfo, handler IServerHandler) I
 	server := &Server{
 		info:     info,
 		acceptor: nil,
-		sessions: session.CreateSessionManager(logger, info.MaxSession),
+		sessions: session.NewSessionManager(logger, info.MaxSession),
 		handler:  handler,
 		logger:   logger,
 	}
 
-	acceptor := CreateAcceptor(logger, info.Protocols, info.Address, server)
+	acceptor := NewAcceptor(logger, info.Protocols, info.Address, server)
 	server.acceptor = acceptor
 
 	return server

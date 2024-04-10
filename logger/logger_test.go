@@ -7,7 +7,7 @@ import (
 )
 
 func TestLogger(t *testing.T) {
-	config := logger.CreateLoggerConfig()
+	config := logger.NewLoggerConfig()
 	config.MinimumLevel(logger.InfoLevel)
 	config.WriteToConsole()
 	config.WriteToFile(logger.WriteToFile{
@@ -31,7 +31,7 @@ func TestLogger(t *testing.T) {
 }
 
 func TestLoggerWithContext(t *testing.T) {
-	config := logger.CreateLoggerConfig()
+	config := logger.NewLoggerConfig()
 	config.MinimumLevel(logger.DebugLevel)
 	config.WriteToConsole()
 	config.WriteToFile(logger.WriteToFile{

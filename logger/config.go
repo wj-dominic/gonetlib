@@ -151,7 +151,7 @@ type config struct {
 	tickDuration   time.Duration
 }
 
-func CreateLoggerConfig() *config {
+func NewLoggerConfig() *config {
 	return &config{
 		limitLevel: DebugLevel,
 		writeToConsole: writeToConsole{

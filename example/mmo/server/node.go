@@ -14,7 +14,7 @@ type Node struct {
 	context IPacketContext
 }
 
-func CreateNode(session session.ISession) INode {
+func NewNode(session session.ISession) INode {
 	return &Node{
 		session: session,
 	}

@@ -61,7 +61,7 @@ func (s *TestServer) OnDisconnect(session session.ISession) error {
 }
 
 func TestSever(t *testing.T) {
-	config := logger.CreateLoggerConfig().
+	config := logger.NewLoggerConfig().
 		WriteToConsole().
 		WriteToFile(
 			logger.WriteToFile{
@@ -72,7 +72,7 @@ func TestSever(t *testing.T) {
 		TickDuration(1000)
 	_logger := config.CreateLogger()
 
-	builder := server.CreateServerBuilder()
+	builder := server.NewServerBuilder()
 	builder.Configuration(server.ServerInfo{
 		Id:         1,
 		Address:    network.Endpoint{IP: "0.0.0.0", Port: 50000},

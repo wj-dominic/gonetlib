@@ -21,7 +21,7 @@ type SessionManager struct {
 	isDisposed int32
 }
 
-func CreateSessionManager(logger logger.ILogger, limit uint32) *SessionManager {
+func NewSessionManager(logger logger.ILogger, limit uint32) *SessionManager {
 	return &SessionManager{
 		logger: logger,
 		pool: sync.Pool{

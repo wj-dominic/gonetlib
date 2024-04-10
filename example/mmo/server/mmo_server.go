@@ -17,7 +17,7 @@ type MMOServer struct {
 	nodes sync.Map
 }
 
-func CreateMMOServer() *MMOServer {
+func NewMMOServer() *MMOServer {
 	return &MMOServer{
 		logger: nil,
 		count:  0,
@@ -36,7 +36,7 @@ func (s *MMOServer) OnStop() error {
 }
 
 func (s *MMOServer) OnConnect(session session.ISession) error {
-	node := CreateNode(session)
+	node := NewNode(session)
 	s.addNode(session.GetID(), node)
 
 	s.logger.Info("On connect session", logger.Why("id", session.GetID()))

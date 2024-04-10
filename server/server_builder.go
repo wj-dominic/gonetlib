@@ -18,7 +18,7 @@ type serverBuilder struct {
 	logger  logger.ILogger
 }
 
-func CreateServerBuilder() IServerBuilder {
+func NewServerBuilder() IServerBuilder {
 	return &serverBuilder{
 		config: ServerInfo{
 			Address:    network.Endpoint{IP: "0.0.0.0", Port: 50000},

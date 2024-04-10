@@ -57,7 +57,7 @@ type PacketContextTwoWay[TRequest any, TResponse any] struct {
 	handler  func(*PacketContextTwoWay[TRequest, TResponse]) error
 }
 
-func CreatePacketContextTwoWay[TRequest any, TResponse any](handler func(*PacketContextTwoWay[TRequest, TResponse]) error) IPacketContext {
+func NewPacketContextTwoWay[TRequest any, TResponse any](handler func(*PacketContextTwoWay[TRequest, TResponse]) error) IPacketContext {
 	return &PacketContextTwoWay[TRequest, TResponse]{
 		node:    nil,
 		handler: handler,
@@ -133,7 +133,7 @@ type PacketContextOneWay[TRequest any] struct {
 	PacketContextTwoWay[TRequest, emptyResponse]
 }
 
-func CreatePacketContextOneWay[TRequest any](handler func(*PacketContextOneWay[TRequest]) error) IPacketContext {
+func NewPacketContextOneWay[TRequest any](handler func(*PacketContextOneWay[TRequest]) error) IPacketContext {
 	ctx := &PacketContextOneWay[TRequest]{
 		PacketContextTwoWay[TRequest, emptyResponse]{
 			node:    nil,

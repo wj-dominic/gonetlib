@@ -77,7 +77,7 @@ func (client *ClientSession) OnSend(session session.ISession, sentBytes []byte) 
 }
 
 func TestSession(t *testing.T) {
-	config := logger.CreateLoggerConfig().
+	config := logger.NewLoggerConfig().
 		WriteToConsole().
 		WriteToFile(
 			logger.WriteToFile{
@@ -90,7 +90,7 @@ func TestSession(t *testing.T) {
 
 	server, client := net.Pipe()
 
-	sessionManager := session.CreateSessionManager(_logger, 1000)
+	sessionManager := session.NewSessionManager(_logger, 1000)
 	serverSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), server, &ServerSession{})
 	clientSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), client, &ClientSession{})
 

@@ -32,7 +32,7 @@ type Acceptor struct {
 	wg        sync.WaitGroup
 }
 
-func CreateAcceptor(logger logger.ILogger, protocols network.Protocol, endpoint network.Endpoint, handler IAcceptHandler) IAcceptor {
+func NewAcceptor(logger logger.ILogger, protocols network.Protocol, endpoint network.Endpoint, handler IAcceptHandler) IAcceptor {
 	return &Acceptor{
 		logger:     logger,
 		listener:   nil,

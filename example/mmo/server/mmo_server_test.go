@@ -51,7 +51,7 @@ func RequestLoginHandler(ctx *mmo_server.PacketContextTwoWay[RequestLogin, Respo
 }
 
 func TestServer(t *testing.T) {
-	config := logger.CreateLoggerConfig().
+	config := logger.NewLoggerConfig().
 		WriteToConsole().
 		WriteToFile(
 			logger.WriteToFile{
@@ -62,7 +62,7 @@ func TestServer(t *testing.T) {
 		TickDuration(1000)
 	_logger := config.CreateLogger()
 
-	builder := server.CreateServerBuilder()
+	builder := server.NewServerBuilder()
 	builder.Configuration(server.ServerInfo{
 		Id:         1,
 		Address:    network.Endpoint{IP: "0.0.0.0", Port: 50000},
@@ -70,11 +70,11 @@ func TestServer(t *testing.T) {
 		MaxSession: 10000,
 	})
 	builder.Logger(_logger)
-	builder.Handler(mmo_server.CreateMMOServer())
+	builder.Handler(mmo_server.NewMMOServer())
 
 	//패킷을 받았을 때 수행할 핸들러를 등록한다.
 	//TODO:Packet type으로 ID를 획득할 수 있도록 해야 함
-	mmo_server.AddPacketContext(1, mmo_server.CreatePacketContextTwoWay(RequestLoginHandler))
+	mmo_server.AddPacketContext(1, mmo_server.NewPacketContextTwoWay(RequestLoginHandler))
 
 	server := builder.Build()
 	server.Run()

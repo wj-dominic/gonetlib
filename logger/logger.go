@@ -153,7 +153,7 @@ func (logger *Logger) flushToFile(text string) error {
 	return nil
 }
 
-var _logger ILogger = CreateLoggerConfig().
+var _logger ILogger = NewLoggerConfig().
 	MinimumLevel(DebugLevel).
 	WriteToConsole().
 	WriteToFile(WriteToFile{

@@ -81,7 +81,7 @@ func (echo *EchoServer) OnSend(session session.ISession, sentBytes []byte) error
 }
 
 func TestClient(t *testing.T) {
-	config := logger.CreateLoggerConfig().
+	config := logger.NewLoggerConfig().
 		WriteToConsole().
 		WriteToFile(
 			logger.WriteToFile{
@@ -91,7 +91,7 @@ func TestClient(t *testing.T) {
 	logger := config.CreateLogger()
 
 	//server
-	serverBuilder := server.CreateServerBuilder()
+	serverBuilder := server.NewServerBuilder()
 	serverBuilder.Configuration(server.ServerInfo{
 		Id:         1,
 		Address:    network.Endpoint{IP: "0.0.0.0", Port: 50000},
