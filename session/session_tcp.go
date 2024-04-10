@@ -15,16 +15,16 @@ const (
 )
 
 type TCPSession struct {
-	Session
+	gonetSession
 	recvBuffer  *ringbuffer.RingBuffer
 	sendChannel chan []byte
 }
 
-func newTcpSession(logger logger.ILogger) ISession {
+func NewTcpSession(logger logger.Logger) Session {
 	return &TCPSession{
-		Session:     newSession(logger),
-		recvBuffer:  ringbuffer.NewRingBuffer(true),
-		sendChannel: make(chan []byte, 100),
+		gonetSession: newSession(logger),
+		recvBuffer:   ringbuffer.NewRingBuffer(true),
+		sendChannel:  make(chan []byte, 100),
 	}
 }
 
@@ -182,7 +182,7 @@ Loop:
 	session.logger.Debug("End send async", logger.Why("id", session.GetID()))
 }
 
-func (session *Session) sendBytes(data []byte) (int, error) {
+func (session *gonetSession) sendBytes(data []byte) (int, error) {
 	if len(data) <= 0 {
 		return 0, fmt.Errorf("empty data for send")
 	}

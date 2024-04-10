@@ -12,7 +12,8 @@ import (
 type RollingInterval uint8
 
 const (
-	RollingIntervalInfinite RollingInterval = 0 + iota
+	RollingIntervalInvalid RollingInterval = 0 + iota
+	RollingIntervalInfinite
 	RollingIntervalYear
 	RollingIntervalMonth
 	RollingIntervalDay
@@ -150,7 +151,7 @@ type config struct {
 	tickDuration   time.Duration
 }
 
-func CreateLoggerConfig() *config {
+func NewLoggerConfig() *config {
 	return &config{
 		limitLevel: DebugLevel,
 		writeToConsole: writeToConsole{
@@ -188,7 +189,9 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 		config.writeToFile.Filepath = option.Filepath
 	}
 
-	if option.RollingInterval <= RollingIntervalMonth && config.writeToFile.RollingInterval != option.RollingInterval {
+	if option.RollingInterval <= RollingIntervalMinute &&
+		option.RollingInterval > RollingIntervalInvalid &&
+		config.writeToFile.RollingInterval != option.RollingInterval {
 		config.writeToFile.RollingInterval = option.RollingInterval
 	}
 
@@ -198,6 +201,6 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 
 	return config
 }
-func (config *config) CreateLogger() ILogger {
+func (config *config) CreateLogger() Logger {
 	return CreateLogger(*config)
 }

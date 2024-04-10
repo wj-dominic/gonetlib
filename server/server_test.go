@@ -6,6 +6,7 @@ import (
 	"gonetlib/server"
 	"gonetlib/session"
 	"gonetlib/util"
+	"gonetlib/util/network"
 	"net"
 	"strconv"
 	"strings"
@@ -15,11 +16,11 @@ import (
 )
 
 type TestServer struct {
-	logger logger.ILogger
+	logger logger.Logger
 	count  int32
 }
 
-func (s *TestServer) OnRun(logger logger.ILogger) error {
+func (s *TestServer) OnRun(logger logger.Logger) error {
 	s.logger = logger
 	s.count = 0
 	return nil
@@ -30,13 +31,13 @@ func (s *TestServer) OnStop() error {
 	return nil
 }
 
-func (s *TestServer) OnConnect(session session.ISession) error {
+func (s *TestServer) OnConnect(session session.Session) error {
 	s.logger.Info("On connect session", logger.Why("id", session.GetID()))
 	util.InterlockIncrement(&s.count)
 	return nil
 }
 
-func (s *TestServer) OnRecv(session session.ISession, packet *message.Message) error {
+func (s *TestServer) OnRecv(session session.Session, packet *message.Message) error {
 	var msg string
 	var id int
 	packet.Pop(&msg)
@@ -50,17 +51,17 @@ func (s *TestServer) OnRecv(session session.ISession, packet *message.Message) e
 	return nil
 }
 
-func (s *TestServer) OnSend(session session.ISession, sentBytes []byte) error {
+func (s *TestServer) OnSend(session session.Session, sentBytes []byte) error {
 	return nil
 }
 
-func (s *TestServer) OnDisconnect(session session.ISession) error {
+func (s *TestServer) OnDisconnect(session session.Session) error {
 	s.logger.Info("On disconnect session", logger.Why("id", session.GetID()))
 	return nil
 }
 
 func TestSever(t *testing.T) {
-	config := logger.CreateLoggerConfig().
+	config := logger.NewLoggerConfig().
 		WriteToConsole().
 		WriteToFile(
 			logger.WriteToFile{
@@ -71,11 +72,11 @@ func TestSever(t *testing.T) {
 		TickDuration(1000)
 	_logger := config.CreateLogger()
 
-	builder := server.CreateServerBuilder()
+	builder := server.NewServerBuilder()
 	builder.Configuration(server.ServerInfo{
 		Id:         1,
-		Address:    server.Endpoint{IP: "0.0.0.0", Port: 50000},
-		Protocols:  server.TCP | server.UDP,
+		Address:    network.Endpoint{IP: "0.0.0.0", Port: 50000},
+		Protocols:  network.TCP | network.UDP,
 		MaxSession: 10000,
 	})
 	builder.Logger(_logger)

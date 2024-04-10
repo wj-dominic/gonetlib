@@ -2,7 +2,6 @@ package logger
 
 import (
 	"fmt"
-	"gonetlib/util"
 	"os"
 	"strings"
 	"sync"
@@ -10,7 +9,7 @@ import (
 	"time"
 )
 
-type ILogger interface {
+type Logger interface {
 	Debug(message string, fields ...Field)
 	Info(message string, fields ...Field)
 	Warn(message string, fields ...Field)
@@ -18,18 +17,19 @@ type ILogger interface {
 	Dispose()
 }
 
-type Logger struct {
-	config     config
-	logs       chan Log
-	wg         sync.WaitGroup
-	isDisposed int32
+type gonetLogger struct {
+	config         config
+	logs           chan Log
+	wg             sync.WaitGroup
+	shouldDisposed atomic.Bool
+	isDisposed     atomic.Bool
+	isUsed         atomic.Bool
 }
 
-func CreateLogger(config config) ILogger {
-	logger := &Logger{
-		config:     config,
-		logs:       make(chan Log),
-		isDisposed: 0,
+func CreateLogger(config config) Logger {
+	logger := &gonetLogger{
+		config: config,
+		logs:   make(chan Log),
 	}
 
 	logger.wg.Add(1)
@@ -38,21 +38,26 @@ func CreateLogger(config config) ILogger {
 	return logger
 }
 
-func (logger *Logger) Debug(message string, fields ...Field) {
+func (logger *gonetLogger) Debug(message string, fields ...Field) {
 	logger.log(DebugLevel, message, fields...)
 }
-func (logger *Logger) Info(message string, fields ...Field) {
+func (logger *gonetLogger) Info(message string, fields ...Field) {
 	logger.log(InfoLevel, message, fields...)
 }
-func (logger *Logger) Warn(message string, fields ...Field) {
+func (logger *gonetLogger) Warn(message string, fields ...Field) {
 	logger.log(WarnLevel, message, fields...)
 }
-func (logger *Logger) Error(message string, fields ...Field) {
+func (logger *gonetLogger) Error(message string, fields ...Field) {
 	logger.log(ErrorLevel, message, fields...)
 }
 
-func (logger *Logger) Dispose() {
-	if util.InterlockedCompareExchange(&logger.isDisposed, 1, 0) == false {
+func (logger *gonetLogger) Dispose() {
+	if logger.isDisposed.CompareAndSwap(false, true) == false {
+		return
+	}
+
+	if logger.isDisposed.CompareAndSwap(logger.isUsed.Load(), false) == true {
+		logger.shouldDisposed.Store(true)
 		return
 	}
 
@@ -60,8 +65,16 @@ func (logger *Logger) Dispose() {
 	logger.wg.Wait()
 }
 
-func (logger *Logger) log(level Level, message string, fields ...Field) {
-	if atomic.LoadInt32(&logger.isDisposed) == 1 {
+func (logger *gonetLogger) log(level Level, message string, fields ...Field) {
+	defer func() {
+		logger.isUsed.Store(false)
+		if logger.shouldDisposed.Load() == true {
+			logger.Dispose()
+		}
+	}()
+
+	logger.isUsed.Store(true)
+	if logger.isDisposed.Load() == true {
 		return
 	}
 
@@ -74,7 +87,7 @@ func (logger *Logger) log(level Level, message string, fields ...Field) {
 	logger.logs <- NewLog(level, message, fields...)
 }
 
-func (logger *Logger) tick() {
+func (logger *gonetLogger) tick() {
 	defer logger.wg.Done()
 
 	var sb strings.Builder
@@ -119,7 +132,7 @@ out:
 	}
 }
 
-func (logger *Logger) flushToFile(text string) error {
+func (logger *gonetLogger) flushToFile(text string) error {
 	if len(text) == 0 {
 		return nil
 	}
@@ -140,7 +153,7 @@ func (logger *Logger) flushToFile(text string) error {
 	return nil
 }
 
-var _logger ILogger = CreateLoggerConfig().
+var _logger Logger = NewLoggerConfig().
 	MinimumLevel(DebugLevel).
 	WriteToConsole().
 	WriteToFile(WriteToFile{
@@ -148,6 +161,10 @@ var _logger ILogger = CreateLoggerConfig().
 		RollingInterval: RollingIntervalDay,
 	}).
 	CreateLogger()
+
+func Default() Logger {
+	return _logger
+}
 
 func Debug(message string, fields ...Field) {
 	_logger.Debug(message, fields...)

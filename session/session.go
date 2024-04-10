@@ -10,23 +10,23 @@ import (
 	"unsafe"
 )
 
-type ISession interface {
+type Session interface {
 	Start() error
 	Stop() error
-	Setup(uint64, net.Conn, ISessionHandler, ISessionEvent) error
+	Setup(uint64, net.Conn, SessionHandler, SessionEvent) error
 	GetID() uint64
 	Send(interface{})
 }
 
-type ISessionHandler interface {
-	OnConnect(ISession) error
-	OnDisconnect(ISession) error
-	OnRecv(ISession, *message.Message) error
-	OnSend(ISession, []byte) error
+type SessionHandler interface {
+	OnConnect(Session) error
+	OnDisconnect(Session) error
+	OnRecv(Session, *message.Message) error
+	OnSend(Session, []byte) error
 }
 
-type ISessionEvent interface {
-	OnRelease(uint64, ISession)
+type SessionEvent interface {
+	OnRelease(uint64, Session)
 }
 
 type releaseFlag struct {
@@ -34,8 +34,8 @@ type releaseFlag struct {
 	flag     int32
 }
 
-type Session struct {
-	logger logger.ILogger
+type gonetSession struct {
+	logger logger.Logger
 
 	id   uint64
 	conn net.Conn
@@ -43,12 +43,12 @@ type Session struct {
 	wg          sync.WaitGroup
 	releaseFlag releaseFlag
 
-	handler ISessionHandler
-	event   ISessionEvent
+	handler SessionHandler
+	event   SessionEvent
 }
 
-func newSession(logger logger.ILogger) Session {
-	return Session{
+func newSession(logger logger.Logger) gonetSession {
+	return gonetSession{
 		logger: logger,
 
 		id:   0,
@@ -62,7 +62,7 @@ func newSession(logger logger.ILogger) Session {
 	}
 }
 
-func (session *Session) Setup(id uint64, conn net.Conn, handler ISessionHandler, event ISessionEvent) error {
+func (session *gonetSession) Setup(id uint64, conn net.Conn, handler SessionHandler, event SessionEvent) error {
 	session.id = id
 	session.conn = conn
 	session.handler = handler
@@ -70,19 +70,21 @@ func (session *Session) Setup(id uint64, conn net.Conn, handler ISessionHandler,
 	return nil
 }
 
-func (session *Session) GetID() uint64 {
+func (session *gonetSession) GetID() uint64 {
 	return session.id
 }
 
-func (session *Session) acquire(force ...bool) bool {
+func (session *gonetSession) acquire(force ...bool) bool {
 	if atomic.LoadInt32(&session.releaseFlag.flag) == 1 {
 		return false
 	}
 
 	if util.InterlockIncrement(&session.releaseFlag.refCount) == 1 {
 		//다른 곳에서 release 중일 수 있으므로 1이면 획득 불가
-		if force[0] == true {
-			return true
+		if len(force) > 0 {
+			if force[0] == true {
+				return true
+			}
 		}
 
 		return false
@@ -91,7 +93,7 @@ func (session *Session) acquire(force ...bool) bool {
 	return true
 }
 
-func (session *Session) release() bool {
+func (session *gonetSession) release() bool {
 	if atomic.LoadInt32(&session.releaseFlag.flag) == 1 {
 		return false
 	}
@@ -110,7 +112,7 @@ func (session *Session) release() bool {
 	return false
 }
 
-func (session *Session) reset() {
+func (session *gonetSession) reset() {
 	session.id = 0
 	session.conn = nil
 
