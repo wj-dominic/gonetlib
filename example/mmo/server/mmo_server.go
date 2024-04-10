@@ -11,7 +11,7 @@ import (
 )
 
 type MMOServer struct {
-	logger logger.ILogger
+	logger logger.Logger
 	count  int32
 
 	nodes sync.Map
@@ -24,7 +24,7 @@ func NewMMOServer() *MMOServer {
 	}
 }
 
-func (s *MMOServer) OnRun(logger logger.ILogger) error {
+func (s *MMOServer) OnRun(logger logger.Logger) error {
 	s.logger = logger
 	s.count = 0
 	return nil
@@ -35,7 +35,7 @@ func (s *MMOServer) OnStop() error {
 	return nil
 }
 
-func (s *MMOServer) OnConnect(session session.ISession) error {
+func (s *MMOServer) OnConnect(session session.Session) error {
 	node := NewNode(session)
 	s.addNode(session.GetID(), node)
 
@@ -70,7 +70,7 @@ func (s *MMOServer) removeNode(sessionID uint64) error {
 	return nil
 }
 
-func (s *MMOServer) OnRecv(session session.ISession, packet *message.Message) error {
+func (s *MMOServer) OnRecv(session session.Session, packet *message.Message) error {
 	node, err := s.getNode(session.GetID())
 	if err != nil {
 		s.logger.Error("Failed to get node from on recv", logger.Why("error", err.Error()))
@@ -111,11 +111,11 @@ func (s *MMOServer) OnRecv(session session.ISession, packet *message.Message) er
 	return nil
 }
 
-func (s *MMOServer) OnSend(session session.ISession, sentBytes []byte) error {
+func (s *MMOServer) OnSend(session session.Session, sentBytes []byte) error {
 	return nil
 }
 
-func (s *MMOServer) OnDisconnect(session session.ISession) error {
+func (s *MMOServer) OnDisconnect(session session.Session) error {
 	node, err := s.getNode(session.GetID())
 	if err != nil {
 		s.logger.Error("Failed to get node from on disconnect", logger.Why("error", err.Error()))

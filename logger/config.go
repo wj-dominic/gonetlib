@@ -201,6 +201,6 @@ func (config *config) WriteToFile(option WriteToFile) *config {
 
 	return config
 }
-func (config *config) CreateLogger() ILogger {
+func (config *config) CreateLogger() Logger {
 	return CreateLogger(*config)
 }

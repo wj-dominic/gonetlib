@@ -8,27 +8,21 @@ import (
 	"net"
 )
 
-type IServerHandler interface {
-	OnRun(logger.ILogger) error
-	OnStop() error
-	session.ISessionHandler
-}
-
-type IServer interface {
+type Server interface {
 	Run() bool
 	Stop() bool
 }
 
-type Server struct {
+type gonetServer struct {
 	info     ServerInfo
-	acceptor IAcceptor
-	sessions session.ISessionManager
-	handler  IServerHandler
-	logger   logger.ILogger
+	acceptor Acceptor
+	sessions session.SessionManager
+	handler  ServerHandler
+	logger   logger.Logger
 }
 
-func newServer(logger logger.ILogger, info ServerInfo, handler IServerHandler) IServer {
-	server := &Server{
+func newServer(logger logger.Logger, info ServerInfo, handler ServerHandler) Server {
+	server := &gonetServer{
 		info:     info,
 		acceptor: nil,
 		sessions: session.NewSessionManager(logger, info.MaxSession),
@@ -42,7 +36,7 @@ func newServer(logger logger.ILogger, info ServerInfo, handler IServerHandler) I
 	return server
 }
 
-func (s *Server) Run() bool {
+func (s *gonetServer) Run() bool {
 	if err := s.acceptor.Start(); err != nil {
 		s.logger.Error("Failed to start accept",
 			logger.Why("address", s.info.Address.ToString()),
@@ -61,7 +55,7 @@ func (s *Server) Run() bool {
 	return true
 }
 
-func (s *Server) Stop() bool {
+func (s *gonetServer) Stop() bool {
 	if err := s.handler.OnStop(); err != nil {
 		s.logger.Error("Failed to call on stop handler", logger.Why("error", err.Error()))
 		return false
@@ -76,7 +70,7 @@ func (s *Server) Stop() bool {
 	return true
 }
 
-func (s *Server) OnAccept(conn net.Conn) {
+func (s *gonetServer) OnAccept(conn net.Conn) {
 	session, err := s.sessions.NewSession(s.makeSessionId(), conn, s.handler)
 	if session == nil {
 		s.logger.Error("Failed to create new session",
@@ -98,10 +92,10 @@ func (s *Server) OnAccept(conn net.Conn) {
 	}
 }
 
-func (s *Server) makeSessionId() uint64 {
+func (s *gonetServer) makeSessionId() uint64 {
 	return snowflake.GenerateID(int64(s.info.Id))
 }
 
-func (s *Server) OnRecvFrom(client net.Addr, recvData []byte, recvBytes uint32) {
+func (s *gonetServer) OnRecvFrom(client net.Addr, recvData []byte, recvBytes uint32) {
 	//TODO : UDP 처리, 커넥트를 가지고 연결을 찾거나 만들도록
 }

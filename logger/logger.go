@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type ILogger interface {
+type Logger interface {
 	Debug(message string, fields ...Field)
 	Info(message string, fields ...Field)
 	Warn(message string, fields ...Field)
@@ -17,7 +17,7 @@ type ILogger interface {
 	Dispose()
 }
 
-type Logger struct {
+type gonetLogger struct {
 	config         config
 	logs           chan Log
 	wg             sync.WaitGroup
@@ -26,8 +26,8 @@ type Logger struct {
 	isUsed         atomic.Bool
 }
 
-func CreateLogger(config config) ILogger {
-	logger := &Logger{
+func CreateLogger(config config) Logger {
+	logger := &gonetLogger{
 		config: config,
 		logs:   make(chan Log),
 	}
@@ -38,20 +38,20 @@ func CreateLogger(config config) ILogger {
 	return logger
 }
 
-func (logger *Logger) Debug(message string, fields ...Field) {
+func (logger *gonetLogger) Debug(message string, fields ...Field) {
 	logger.log(DebugLevel, message, fields...)
 }
-func (logger *Logger) Info(message string, fields ...Field) {
+func (logger *gonetLogger) Info(message string, fields ...Field) {
 	logger.log(InfoLevel, message, fields...)
 }
-func (logger *Logger) Warn(message string, fields ...Field) {
+func (logger *gonetLogger) Warn(message string, fields ...Field) {
 	logger.log(WarnLevel, message, fields...)
 }
-func (logger *Logger) Error(message string, fields ...Field) {
+func (logger *gonetLogger) Error(message string, fields ...Field) {
 	logger.log(ErrorLevel, message, fields...)
 }
 
-func (logger *Logger) Dispose() {
+func (logger *gonetLogger) Dispose() {
 	if logger.isDisposed.CompareAndSwap(false, true) == false {
 		return
 	}
@@ -65,7 +65,7 @@ func (logger *Logger) Dispose() {
 	logger.wg.Wait()
 }
 
-func (logger *Logger) log(level Level, message string, fields ...Field) {
+func (logger *gonetLogger) log(level Level, message string, fields ...Field) {
 	defer func() {
 		logger.isUsed.Store(false)
 		if logger.shouldDisposed.Load() == true {
@@ -87,7 +87,7 @@ func (logger *Logger) log(level Level, message string, fields ...Field) {
 	logger.logs <- NewLog(level, message, fields...)
 }
 
-func (logger *Logger) tick() {
+func (logger *gonetLogger) tick() {
 	defer logger.wg.Done()
 
 	var sb strings.Builder
@@ -132,7 +132,7 @@ out:
 	}
 }
 
-func (logger *Logger) flushToFile(text string) error {
+func (logger *gonetLogger) flushToFile(text string) error {
 	if len(text) == 0 {
 		return nil
 	}
@@ -153,7 +153,7 @@ func (logger *Logger) flushToFile(text string) error {
 	return nil
 }
 
-var _logger ILogger = NewLoggerConfig().
+var _logger Logger = NewLoggerConfig().
 	MinimumLevel(DebugLevel).
 	WriteToConsole().
 	WriteToFile(WriteToFile{
@@ -162,7 +162,7 @@ var _logger ILogger = NewLoggerConfig().
 	}).
 	CreateLogger()
 
-func Default() ILogger {
+func Default() Logger {
 	return _logger
 }
 

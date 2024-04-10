@@ -10,28 +10,22 @@ import (
 	"sync/atomic"
 )
 
-type IClientHandler interface {
-	OnRun(logger.ILogger) error
-	OnStop() error
-	session.ISessionHandler
-}
-
 type Client interface {
 	Run() bool
 	Stop() bool
 }
 
-type client struct {
-	logger     logger.ILogger
+type gonetClient struct {
+	logger     logger.Logger
 	info       ClientInfo
-	handler    IClientHandler
+	handler    ClientHandler
 	connectors map[network.Protocol]Connector
 	sessions   sync.Map
 	isStopped  atomic.Bool
 }
 
-func newClient(logger logger.ILogger, info ClientInfo, handler IClientHandler) Client {
-	client := &client{
+func newClient(logger logger.Logger, info ClientInfo, handler ClientHandler) Client {
+	client := &gonetClient{
 		logger:     logger,
 		info:       info,
 		handler:    handler,
@@ -51,7 +45,7 @@ func newClient(logger logger.ILogger, info ClientInfo, handler IClientHandler) C
 	return client
 }
 
-func (c *client) Run() bool {
+func (c *gonetClient) Run() bool {
 	for _, connector := range c.connectors {
 		if err := connector.Start(); err != nil {
 			c.logger.Error("Failed to start by connector", logger.Why("to", c.info.ServerAddress.ToString()), logger.Why("error", err.Error()))
@@ -70,7 +64,7 @@ func (c *client) Run() bool {
 	return true
 }
 
-func (c *client) Stop() bool {
+func (c *gonetClient) Stop() bool {
 	if c.isStopped.CompareAndSwap(false, true) == false {
 		return false
 	}
@@ -86,9 +80,9 @@ func (c *client) Stop() bool {
 	c.sessions.Range(func(key, value any) bool {
 		session := value.(struct {
 			network.Protocol
-			session.ISession
+			session.Session
 		})
-		session.ISession.Stop()
+		session.Session.Stop()
 		return true
 	})
 
@@ -97,14 +91,14 @@ func (c *client) Stop() bool {
 	return true
 }
 
-func (c *client) OnConnect(protocol network.Protocol, conn net.Conn) {
+func (c *gonetClient) OnConnect(protocol network.Protocol, conn net.Conn) {
 	if network.IsTCP(protocol) == true {
 		tcpSession := session.NewTcpSession(c.logger)
 		tcpSession.Setup(snowflake.GenerateID(1), conn, c.handler, c)
 
 		c.sessions.Store(tcpSession.GetID(), struct {
 			network.Protocol
-			session.ISession
+			session.Session
 		}{network.TCP, tcpSession})
 
 		tcpSession.Start()
@@ -115,7 +109,7 @@ func (c *client) OnConnect(protocol network.Protocol, conn net.Conn) {
 	}
 }
 
-func (c *client) OnRelease(id uint64, inSession session.ISession) {
+func (c *gonetClient) OnRelease(id uint64, inSession session.Session) {
 	value, loaded := c.sessions.LoadAndDelete(id)
 	if loaded == false {
 		c.logger.Error("Failed to load from client sessions", logger.Why("id", id))
@@ -124,7 +118,7 @@ func (c *client) OnRelease(id uint64, inSession session.ISession) {
 
 	foundSession := value.(struct {
 		network.Protocol
-		session.ISession
+		session.Session
 	})
 
 	if foundSession.GetID() != inSession.GetID() {

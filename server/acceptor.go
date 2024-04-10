@@ -7,12 +7,12 @@ import (
 	"sync"
 )
 
-type IAcceptHandler interface {
+type AcceptHandler interface {
 	OnAccept(net.Conn)
 	OnRecvFrom(net.Addr, []byte, uint32)
 }
 
-type IAcceptor interface {
+type Acceptor interface {
 	Start() error
 	Stop()
 }
@@ -21,19 +21,19 @@ const (
 	MAX_BUFFER uint32 = 66535
 )
 
-type Acceptor struct {
-	logger     logger.ILogger
+type acceptor struct {
+	logger     logger.Logger
 	listener   net.Listener
 	packetConn net.PacketConn
 
 	protocols network.Protocol
 	endpoint  network.Endpoint
-	handler   IAcceptHandler
+	handler   AcceptHandler
 	wg        sync.WaitGroup
 }
 
-func NewAcceptor(logger logger.ILogger, protocols network.Protocol, endpoint network.Endpoint, handler IAcceptHandler) IAcceptor {
-	return &Acceptor{
+func NewAcceptor(logger logger.Logger, protocols network.Protocol, endpoint network.Endpoint, handler AcceptHandler) Acceptor {
+	return &acceptor{
 		logger:     logger,
 		listener:   nil,
 		packetConn: nil,
@@ -46,7 +46,7 @@ func NewAcceptor(logger logger.ILogger, protocols network.Protocol, endpoint net
 	}
 }
 
-func (a *Acceptor) Start() error {
+func (a *acceptor) Start() error {
 	if (a.protocols & network.TCP) == network.TCP {
 		listener, err := net.Listen("tcp", a.endpoint.ToString())
 		if err != nil {
@@ -74,7 +74,7 @@ func (a *Acceptor) Start() error {
 	return nil
 }
 
-func (a *Acceptor) waitForTCPConn() {
+func (a *acceptor) waitForTCPConn() {
 	defer a.wg.Done()
 
 	for {
@@ -88,7 +88,7 @@ func (a *Acceptor) waitForTCPConn() {
 	}
 }
 
-func (a *Acceptor) waitForUDPConn() {
+func (a *acceptor) waitForUDPConn() {
 	defer a.wg.Done()
 
 	for {
@@ -103,19 +103,19 @@ func (a *Acceptor) waitForUDPConn() {
 	}
 }
 
-func (a *Acceptor) onAccept(conn net.Conn) {
+func (a *acceptor) onAccept(conn net.Conn) {
 	if a.handler != nil {
 		a.handler.OnAccept(conn)
 	}
 }
 
-func (a *Acceptor) onRecvFrom(client net.Addr, recvData []byte, recvBytes uint32) {
+func (a *acceptor) onRecvFrom(client net.Addr, recvData []byte, recvBytes uint32) {
 	if a.handler != nil {
 		a.handler.OnRecvFrom(client, recvData, recvBytes)
 	}
 }
 
-func (a *Acceptor) Stop() {
+func (a *acceptor) Stop() {
 	if a.listener != nil {
 		a.listener.Close()
 	}

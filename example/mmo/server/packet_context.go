@@ -15,7 +15,7 @@ type IPacketContextTask interface {
 
 type PacketContextTask[Out any] struct {
 	wg  *sync.WaitGroup
-	job task.ITask[Out]
+	job task.Task[Out]
 }
 
 func (task *PacketContextTask[Out]) Await(job func(interface{}, error)) IPacketContextTask {

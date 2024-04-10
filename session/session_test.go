@@ -11,23 +11,23 @@ import (
 )
 
 type ServerSession struct {
-	logger logger.ILogger
+	logger logger.Logger
 }
 
-func (server *ServerSession) Init(logger logger.ILogger) error {
+func (server *ServerSession) Init(logger logger.Logger) error {
 	server.logger = logger
 	return nil
 }
 
-func (server *ServerSession) OnConnect(session session.ISession) error {
+func (server *ServerSession) OnConnect(session session.Session) error {
 	server.logger.Info("on connect server", logger.Why("id", session.GetID()))
 	return nil
 }
-func (server *ServerSession) OnDisconnect(session session.ISession) error {
+func (server *ServerSession) OnDisconnect(session session.Session) error {
 	server.logger.Info("on disconnect server", logger.Why("id", session.GetID()))
 	return nil
 }
-func (server *ServerSession) OnRecv(session session.ISession, packet *message.Message) error {
+func (server *ServerSession) OnRecv(session session.Session, packet *message.Message) error {
 	var msg string
 	packet.Pop(&msg)
 
@@ -36,21 +36,21 @@ func (server *ServerSession) OnRecv(session session.ISession, packet *message.Me
 
 	return nil
 }
-func (server *ServerSession) OnSend(session session.ISession, sentBytes []byte) error {
+func (server *ServerSession) OnSend(session session.Session, sentBytes []byte) error {
 	server.logger.Info("sent message to client", logger.Why("sentBytes", len(sentBytes)))
 	return nil
 }
 
 type ClientSession struct {
-	logger logger.ILogger
+	logger logger.Logger
 }
 
-func (client *ClientSession) Init(logger logger.ILogger) error {
+func (client *ClientSession) Init(logger logger.Logger) error {
 	client.logger = logger
 	return nil
 }
 
-func (client *ClientSession) OnConnect(session session.ISession) error {
+func (client *ClientSession) OnConnect(session session.Session) error {
 	client.logger.Info("on connect client", logger.Why("id", session.GetID()))
 
 	msg := "test"
@@ -59,11 +59,11 @@ func (client *ClientSession) OnConnect(session session.ISession) error {
 
 	return nil
 }
-func (client *ClientSession) OnDisconnect(session session.ISession) error {
+func (client *ClientSession) OnDisconnect(session session.Session) error {
 	client.logger.Info("on disconnect client", logger.Why("id", session.GetID()))
 	return nil
 }
-func (client *ClientSession) OnRecv(session session.ISession, packet *message.Message) error {
+func (client *ClientSession) OnRecv(session session.Session, packet *message.Message) error {
 	var msg string
 	packet.Pop(&msg)
 	client.logger.Info("recv message from server", logger.Why("msg", msg))
@@ -71,7 +71,7 @@ func (client *ClientSession) OnRecv(session session.ISession, packet *message.Me
 	session.Send(msg)
 	return nil
 }
-func (client *ClientSession) OnSend(session session.ISession, sentBytes []byte) error {
+func (client *ClientSession) OnSend(session session.Session, sentBytes []byte) error {
 	client.logger.Info("sent message to server", logger.Why("sentBytes", len(sentBytes)))
 	return nil
 }

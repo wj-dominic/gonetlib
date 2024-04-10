@@ -7,24 +7,31 @@ import (
 
 type ClientBuilder interface {
 	Configuration(ClientInfo) ClientBuilder
-	Logger(logger.ILogger) ClientBuilder
-	Handler(IClientHandler) ClientBuilder
+	Logger(logger.Logger) ClientBuilder
+	Handler(ClientHandler) ClientBuilder
 	Build() Client
 }
 
 type clientBuilder struct {
 	info    ClientInfo
-	handler IClientHandler
-	logger  logger.ILogger
+	handler ClientHandler
+	logger  logger.Logger
 }
 
 func NewClientBuilder() ClientBuilder {
+	config := logger.NewLoggerConfig().
+		WriteToConsole().
+		MinimumLevel(logger.DebugLevel)
+	defaultLogger := config.CreateLogger()
+
 	return &clientBuilder{
 		info: ClientInfo{
 			ServerAddress: network.Endpoint{IP: "127.0.0.1", Port: 50000},
 			Protocols:     network.TCP,
 			ConnectorInfo: DefaultConnectorInfo(),
 		},
+		handler: newDefaultClientHandler(),
+		logger:  defaultLogger,
 	}
 }
 
@@ -43,12 +50,12 @@ func (builder *clientBuilder) Configuration(info ClientInfo) ClientBuilder {
 	return builder
 }
 
-func (builder *clientBuilder) Logger(logger logger.ILogger) ClientBuilder {
+func (builder *clientBuilder) Logger(logger logger.Logger) ClientBuilder {
 	builder.logger = logger
 	return builder
 }
 
-func (builder *clientBuilder) Handler(handler IClientHandler) ClientBuilder {
+func (builder *clientBuilder) Handler(handler ClientHandler) ClientBuilder {
 	builder.handler = handler
 	return builder
 }

@@ -36,7 +36,7 @@ func NewConnectorInfo(reconnectDuration time.Duration, reconnectLimit uint32) Co
 }
 
 type connector struct {
-	logger         logger.ILogger
+	logger         logger.Logger
 	serverAddress  network.Endpoint
 	wg             sync.WaitGroup
 	reconnect      chan bool
@@ -46,7 +46,7 @@ type connector struct {
 	quit           atomic.Bool
 }
 
-func newConnector(logger logger.ILogger, serverAddress network.Endpoint, handler ConnectHandler, option ConnectorInfo) connector {
+func newConnector(logger logger.Logger, serverAddress network.Endpoint, handler ConnectHandler, option ConnectorInfo) connector {
 	return connector{
 		logger:         logger,
 		serverAddress:  serverAddress,
@@ -67,7 +67,7 @@ type tcpConnector struct {
 	connector
 }
 
-func NewTcpConnector(logger logger.ILogger, serverAddress network.Endpoint, handler ConnectHandler, option ConnectorInfo) Connector {
+func NewTcpConnector(logger logger.Logger, serverAddress network.Endpoint, handler ConnectHandler, option ConnectorInfo) Connector {
 	return &tcpConnector{
 		connector: newConnector(logger, serverAddress, handler, option),
 	}
@@ -128,7 +128,7 @@ type udpConnector struct {
 	connector
 }
 
-func NewUdpConnector(logger logger.ILogger, serverAddress network.Endpoint, handler ConnectHandler, option ConnectorInfo) Connector {
+func NewUdpConnector(logger logger.Logger, serverAddress network.Endpoint, handler ConnectHandler, option ConnectorInfo) Connector {
 	return &udpConnector{
 		connector: newConnector(logger, serverAddress, handler, option),
 	}
