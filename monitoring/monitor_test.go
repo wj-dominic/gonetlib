@@ -1,13 +1,22 @@
 package monitoring
 
 import (
+	"gonetlib/logger"
 	"math/rand"
 	"testing"
 	"time"
 )
 
+type SampleMonitoringData struct {
+	SendCount uint64
+	RecvCount uint64
+
+	SendBytes uint64
+	RecvBytes uint64
+}
+
 type TestCollector struct {
-	sampleData SessionMonitoringData
+	sampleData SampleMonitoringData
 }
 
 func (c *TestCollector) Collect() (interface{}, error) {
@@ -21,7 +30,18 @@ func (c *TestCollector) Collect() (interface{}, error) {
 }
 
 func TestStart(t *testing.T) {
-	m := NewMonitor()
+	config := logger.CreateLoggerConfig().
+		WriteToConsole().
+		WriteToFile(
+			logger.WriteToFile{
+				Filepath:        "./test_monitoring.log",
+				RollingInterval: logger.RollingIntervalDay,
+			}).
+		MinimumLevel(logger.DebugLevel).
+		TickDuration(1000)
+	_logger := config.CreateLogger()
+
+	m := NewMonitor(_logger)
 	e := NewDefaultExporter(m)
 	testCollector := &TestCollector{}
 	m.AddCollector(testCollector)
@@ -31,11 +51,9 @@ func TestStart(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	e.Run()
-
+	e.Start()
 	// Wait for some time to allow ticks to occur
 	time.Sleep(20 * time.Second)
 
-	m.Stop()
 	e.Stop()
 }

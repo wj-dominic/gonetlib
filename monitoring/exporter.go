@@ -1,13 +1,11 @@
 package monitoring
 
 import (
-	"encoding/json"
-	"gonetlib/logger"
 	"net/http"
 )
 
 type Exporter interface {
-	Run() error
+	Start() error
 	Stop()
 }
 
@@ -22,14 +20,13 @@ func NewDefaultExporter(monitor *Monitor) Exporter {
 	}
 }
 
-func (de *defaultExporter) Run() error {
+func (de *defaultExporter) Start() error {
 	de.server = &http.Server{Addr: ":8080"}
 	http.HandleFunc("/monitor", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		data, _ := json.Marshal(de.monitor.GetData())
-		logger.Info("monitoring data", logger.Why("data", string(data)))
-		w.Write(data)
+		resp := de.monitor.MonitoringData()
+		w.Write(resp)
 	})
 
 	go func() {

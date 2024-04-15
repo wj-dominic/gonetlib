@@ -1,34 +1,36 @@
 package monitoring
 
 import (
+	"encoding/json"
+	"gonetlib/logger"
 	"sync"
 	"time"
 )
 
-type Collector[T any] interface {
-	Collect() (T, error)
+type Collector interface {
+	Collect() (interface{}, error)
 }
 
 type Monitor struct {
 	ticker    *time.Ticker
-	collector Collector[interface{}]
-	recvCount uint64
+	collector Collector
 	interval  int
 
-	prevSessionMonitoringData    SessionMonitoringData
-	currentSessionMonitoringData SessionMonitoringData
+	monitoringData []byte
 
 	dataLock sync.RWMutex
 
 	done chan struct{}
+
+	logger logger.ILogger
 }
 
-func NewMonitor() *Monitor {
+func NewMonitor(logger logger.ILogger) *Monitor {
 	return &Monitor{
-		recvCount: 1,
-		interval:  1,
-		done:      make(chan struct{}),
-		dataLock:  sync.RWMutex{},
+		interval: 1,
+		done:     make(chan struct{}),
+		dataLock: sync.RWMutex{},
+		logger:   logger,
 	}
 }
 
@@ -39,11 +41,26 @@ func (m *Monitor) Start() error {
 		for {
 			select {
 			case <-m.ticker.C:
-				m.dataLock.Lock()
-				m.prevSessionMonitoringData = m.currentSessionMonitoringData
+				if m.collector == nil {
+					m.logger.Error("Collector is not set")
+					continue
+				}
 
-				monitoringData, _ := m.collector.Collect()
-				m.currentSessionMonitoringData = monitoringData.(SessionMonitoringData)
+				m.dataLock.Lock()
+
+				coll, err := m.collector.Collect()
+				if err != nil {
+					m.logger.Error("Error collecting monitoring data:", logger.Why("error", err))
+					m.dataLock.Unlock()
+					continue
+				}
+
+				m.monitoringData, err = json.Marshal(coll)
+				if err != nil {
+					m.logger.Error("Error marshalling monitoring data:", logger.Why("error", err))
+					m.dataLock.Unlock()
+					continue
+				}
 
 				m.dataLock.Unlock()
 			case <-m.done:
@@ -60,26 +77,13 @@ func (m *Monitor) Stop() {
 	m.done <- struct{}{}
 }
 
-func (m *Monitor) GetData() MonitoringDataResponse {
+func (m *Monitor) MonitoringData() []byte {
 	m.dataLock.RLock()
 	defer m.dataLock.RUnlock()
 
-	resp := MonitoringDataResponse{
-		ActiveSessions:      m.currentSessionMonitoringData.ActiveSessions,
-		ConnectableSessions: m.currentSessionMonitoringData.ConnectableSessions,
-
-		SendTPS: m.currentSessionMonitoringData.SendCount - m.prevSessionMonitoringData.SendCount,
-		RecvTPS: m.currentSessionMonitoringData.RecvCount - m.prevSessionMonitoringData.RecvCount,
-
-		SendBPS: m.currentSessionMonitoringData.SendBytes - m.prevSessionMonitoringData.SendBytes,
-		RecvBPS: m.currentSessionMonitoringData.RecvBytes - m.prevSessionMonitoringData.RecvBytes,
-
-		SendChannelCount: m.currentSessionMonitoringData.SendChannelCount,
-	}
-
-	return resp
+	return m.monitoringData
 }
 
-func (m *Monitor) AddCollector(collector Collector[interface{}]) {
+func (m *Monitor) AddCollector(collector Collector) {
 	m.collector = collector
 }

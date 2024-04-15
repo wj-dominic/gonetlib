@@ -13,14 +13,15 @@ import (
 type ISessionManager interface {
 	NewSession(uint64, net.Conn, ISessionHandler) (ISession, error)
 	Dispose()
-	monitoring.Collector[interface{}]
+	monitoring.Collector
 }
 
 type SessionManager struct {
-	logger     logger.ILogger
-	pool       sync.Pool
-	sessions   sync.Map
-	isDisposed int32
+	logger         logger.ILogger
+	pool           sync.Pool
+	sessions       sync.Map
+	monitoringData MonitoringData
+	isDisposed     int32
 }
 
 func CreateSessionManager(logger logger.ILogger, limit uint32) *SessionManager {
@@ -31,7 +32,10 @@ func CreateSessionManager(logger logger.ILogger, limit uint32) *SessionManager {
 				return newTcpSession(logger)
 			},
 		},
-		sessions:   sync.Map{},
+		sessions: sync.Map{},
+		monitoringData: MonitoringData{
+			BySession: make(map[uint64]SessionMonitoringData),
+		},
 		isDisposed: 0,
 	}
 }
@@ -88,16 +92,17 @@ func (s *SessionManager) OnRelease(sessionID uint64, session ISession) {
 }
 
 func (s *SessionManager) Collect() (interface{}, error) {
-	monitoringData := monitoring.SessionMonitoringData{}
+	// 매번 초기화 방식으로 할지 고민(or NewSession, OnRelease에서 lock), session count를 관리하는 부분도 추가 고려
+	s.monitoringData.BySession = make(map[uint64]SessionMonitoringData)
 
 	s.sessions.Range(func(key, value any) bool {
 		session := value.(ISession)
 
-		monitoringData.ActiveSessions++
-		monitoringData.Add(session.SessionMonitoringData())
+		s.monitoringData.ActiveSessions++
+		s.monitoringData.BySession[session.GetID()] = session.SessionMonitoringData()
 
 		return true
 	})
 
-	return monitoringData, nil
+	return s.monitoringData, nil
 }

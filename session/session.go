@@ -3,7 +3,6 @@ package session
 import (
 	"gonetlib/logger"
 	"gonetlib/message"
-	"gonetlib/monitoring"
 	"gonetlib/util"
 	"net"
 	"sync"
@@ -17,7 +16,7 @@ type ISession interface {
 	Setup(uint64, net.Conn, ISessionHandler, ISessionEvent) error
 	GetID() uint64
 	Send(interface{})
-	SessionMonitoringData() monitoring.SessionMonitoringData
+	SessionMonitoringData() SessionMonitoringData
 }
 
 type ISessionHandler interface {
@@ -49,7 +48,7 @@ type Session struct {
 	event   ISessionEvent
 
 	// Monitoring area
-	monitoringData monitoring.SessionMonitoringData
+	monitoringData SessionMonitoringData
 }
 
 func newSession(logger logger.ILogger) Session {
@@ -65,7 +64,7 @@ func newSession(logger logger.ILogger) Session {
 		handler: nil,
 		event:   nil,
 
-		monitoringData: monitoring.SessionMonitoringData{},
+		monitoringData: SessionMonitoringData{},
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"gonetlib/logger"
 	"gonetlib/message"
-	"gonetlib/monitoring"
 	"gonetlib/ringbuffer"
 	"time"
 )
@@ -255,7 +254,7 @@ func (session *TCPSession) Send(msg interface{}) {
 	session.sendChannel <- packet.GetBuffer()
 }
 
-func (session *TCPSession) SessionMonitoringData() monitoring.SessionMonitoringData {
+func (session *TCPSession) SessionMonitoringData() SessionMonitoringData {
 	return session.monitoringData
 }
 
