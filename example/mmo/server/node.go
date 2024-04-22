@@ -10,11 +10,11 @@ type INode interface {
 }
 
 type Node struct {
-	session session.ISession
+	session session.Session
 	context IPacketContext
 }
 
-func CreateNode(session session.ISession) INode {
+func NewNode(session session.Session) INode {
 	return &Node{
 		session: session,
 	}

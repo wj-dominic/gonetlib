@@ -5,14 +5,14 @@ import (
 	"gonetlib/util/snowflake"
 )
 
-type ITask[Out any] interface {
-	Start(...interface{}) ITask[Out]
-	Await(func(Out, error)) ITask[Out]
-	Wait() ITask[Out]
+type Task[Out any] interface {
+	Start(...interface{}) Task[Out]
+	Await(func(Out, error)) Task[Out]
+	Wait() Task[Out]
 	Result() (Out, error)
 }
 
-type Task[Out any] struct {
+type gonetTask[Out any] struct {
 	id          uint64
 	job         func(...interface{}) (Out, error)
 	await       func(Out, error)
@@ -22,7 +22,7 @@ type Task[Out any] struct {
 	numOfThread uint8
 }
 
-func (t *Task[Out]) Start(params ...interface{}) ITask[Out] {
+func (t *gonetTask[Out]) Start(params ...interface{}) Task[Out] {
 	f := func(threadId uint8) bool {
 		defer func() {
 			fmt.Printf("end async job | thread id %d\n", threadId)
@@ -42,7 +42,7 @@ func (t *Task[Out]) Start(params ...interface{}) ITask[Out] {
 	return t
 }
 
-func (t *Task[Out]) Await(await func(Out, error)) ITask[Out] {
+func (t *gonetTask[Out]) Await(await func(Out, error)) Task[Out] {
 	t.await = await
 
 	awaitFunc := func(threadId uint8) bool {
@@ -71,7 +71,7 @@ func (t *Task[Out]) Await(await func(Out, error)) ITask[Out] {
 	return t
 }
 
-func (t *Task[Out]) Wait() ITask[Out] {
+func (t *gonetTask[Out]) Wait() Task[Out] {
 	var ok bool
 	t.result, ok = <-t.resultChan
 	if ok == false {
@@ -81,17 +81,17 @@ func (t *Task[Out]) Wait() ITask[Out] {
 	return t
 }
 
-func (t *Task[Out]) Result() (Out, error) {
+func (t *gonetTask[Out]) Result() (Out, error) {
 	return t.result, t.error
 }
 
-func New[Out any](f func(...interface{}) (Out, error), numOfThread ...uint8) ITask[Out] {
+func New[Out any](f func(...interface{}) (Out, error), numOfThread ...uint8) Task[Out] {
 	tempNumOfThread := uint8(0)
 	if len(numOfThread) != 0 {
 		tempNumOfThread = numOfThread[0]
 	}
 
-	return &Task[Out]{
+	return &gonetTask[Out]{
 		id:          snowflake.GenerateID(int64(tempNumOfThread)),
 		job:         f,
 		await:       nil,

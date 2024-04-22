@@ -22,7 +22,7 @@ type Log struct {
 
 func NewLog(level Level, message string, fields ...Field) Log {
 	now := time.Now()
-	var functionName, lineStr string = "", ""
+	var functionName, lineStr string
 
 	if level >= ErrorLevel {
 		_, fn, lineInt, _ := runtime.Caller(3)
@@ -54,7 +54,6 @@ func (log *Log) ToString() string {
 		sb.WriteString(field.ToString())
 	}
 
-	//로그 포맷이 이쁘게 나오지 않아서 뒤로 보냄
 	if log.level >= ErrorLevel {
 		sb.WriteString(DELIM)
 		sb.WriteString(log.functionName)
