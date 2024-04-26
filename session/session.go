@@ -44,8 +44,8 @@ type gonetSession struct {
 	wg          sync.WaitGroup
 	releaseFlag releaseFlag
 
-	handler ISessionHandler
-	event   ISessionEvent
+	handler SessionHandler
+	event   SessionEvent
 
 	// Monitoring area
 	monitoringData SessionMonitoringData

@@ -3,7 +3,6 @@ package session
 import (
 	"fmt"
 	"gonetlib/logger"
-	"gonetlib/monitoring"
 	"gonetlib/util"
 	"net"
 	"sync"
@@ -13,11 +12,10 @@ import (
 type SessionManager interface {
 	NewSession(uint64, net.Conn, SessionHandler) (Session, error)
 	Dispose()
-	monitoring.Collector
 }
 
-type SessionManager struct {
-	logger         logger.ILogger
+type sessionManager struct {
+	logger         logger.Logger
 	pool           sync.Pool
 	sessions       sync.Map
 	monitoringData MonitoringData
@@ -91,12 +89,13 @@ func (s *sessionManager) OnRelease(sessionID uint64, session Session) {
 	s.pool.Put(session)
 }
 
-func (s *SessionManager) Collect() (interface{}, error) {
+func (s *sessionManager) Collect() (interface{}, error) {
 	// 매번 초기화 방식으로 할지 고민(or NewSession, OnRelease에서 lock), session count를 관리하는 부분도 추가 고려
 	s.monitoringData.BySession = make(map[uint64]SessionMonitoringData)
+	s.monitoringData.ActiveSessions = 0
 
 	s.sessions.Range(func(key, value any) bool {
-		session := value.(ISession)
+		session := value.(Session)
 
 		s.monitoringData.ActiveSessions++
 		s.monitoringData.BySession[session.GetID()] = session.SessionMonitoringData()

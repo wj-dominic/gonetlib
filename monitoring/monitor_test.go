@@ -8,11 +8,11 @@ import (
 )
 
 type SampleMonitoringData struct {
-	SendCount uint64
-	RecvCount uint64
+	SendCount uint64 `json:"send_count"`
+	RecvCount uint64 `json:"recv_count"`
 
-	SendBytes uint64
-	RecvBytes uint64
+	SendBytes uint64 `json:"send_bytes"`
+	RecvBytes uint64 `json:"recv_bytes"`
 }
 
 type TestCollector struct {
@@ -30,7 +30,7 @@ func (c *TestCollector) Collect() (interface{}, error) {
 }
 
 func TestStart(t *testing.T) {
-	config := logger.CreateLoggerConfig().
+	config := logger.NewLoggerConfig().
 		WriteToConsole().
 		WriteToFile(
 			logger.WriteToFile{
@@ -53,7 +53,7 @@ func TestStart(t *testing.T) {
 
 	e.Start()
 	// Wait for some time to allow ticks to occur
-	time.Sleep(20 * time.Second)
+	time.Sleep(60 * time.Second)
 
 	e.Stop()
 }

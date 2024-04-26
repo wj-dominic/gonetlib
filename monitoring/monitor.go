@@ -22,10 +22,10 @@ type Monitor struct {
 
 	done chan struct{}
 
-	logger logger.ILogger
+	logger logger.Logger
 }
 
-func NewMonitor(logger logger.ILogger) *Monitor {
+func NewMonitor(logger logger.Logger) *Monitor {
 	return &Monitor{
 		interval: 1,
 		done:     make(chan struct{}),
