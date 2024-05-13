@@ -1,14 +1,15 @@
 package client_test
 
 import (
-	"gonetlib/client"
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/server"
-	"gonetlib/session"
-	"gonetlib/util/network"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/client"
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/server"
+	"github.com/wj-dominic/gonetlib/session"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 type EchoClient struct {

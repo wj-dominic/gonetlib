@@ -2,17 +2,18 @@ package mmo_server_test
 
 import (
 	"fmt"
-	mmo_server "gonetlib/example/mmo/server"
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/server"
-	"gonetlib/util"
-	"gonetlib/util/network"
 	"net"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	mmo_server "github.com/wj-dominic/gonetlib/example/mmo/server"
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/server"
+	"github.com/wj-dominic/gonetlib/util"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 var wg sync.WaitGroup

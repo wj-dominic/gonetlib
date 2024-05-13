@@ -1,11 +1,12 @@
 package server_test
 
 import (
-	"gonetlib/logger"
-	"gonetlib/server"
-	"gonetlib/util/network"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/server"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 func TestAcceptor(t *testing.T) {

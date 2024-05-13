@@ -1,13 +1,14 @@
 package client
 
 import (
-	"gonetlib/logger"
-	"gonetlib/session"
-	"gonetlib/util/network"
-	"gonetlib/util/snowflake"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/session"
+	"github.com/wj-dominic/gonetlib/util/network"
+	"github.com/wj-dominic/gonetlib/util/snowflake"
 )
 
 type Client interface {
