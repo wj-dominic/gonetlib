@@ -1,10 +1,11 @@
 package mmo_server
 
 import (
-	"gonetlib/message"
-	"gonetlib/task"
 	"math/rand"
 	"sync"
+
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/task"
 )
 
 // IPacketContextTask ...

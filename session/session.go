@@ -1,13 +1,14 @@
 package session
 
 import (
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/util"
 	"net"
 	"sync"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/util"
 )
 
 type Session interface {

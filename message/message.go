@@ -3,9 +3,10 @@ package message
 import (
 	"encoding/binary"
 	"fmt"
-	"gonetlib/util"
 	"math/rand"
 	"reflect"
+
+	"github.com/wj-dominic/gonetlib/util"
 )
 
 type IMessageEncoder interface {

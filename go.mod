@@ -1,4 +1,4 @@
-module gonetlib
+module github.com/wj-dominic/gonetlib
 
 go 1.18
 

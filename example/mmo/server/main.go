@@ -1,12 +1,14 @@
 package mmo_server
 
 import (
-	"gonetlib/logger"
-	"gonetlib/server"
-	"gonetlib/util/network"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/wj-dominic/gonetlib/server"
+	"github.com/wj-dominic/gonetlib/util/network"
+
+	"github.com/wj-dominic/gonetlib/logger"
 )
 
 func main() {

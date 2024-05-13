@@ -2,7 +2,8 @@ package task
 
 import (
 	"fmt"
-	"gonetlib/util/snowflake"
+
+	"github.com/wj-dominic/gonetlib/util/snowflake"
 )
 
 type Task[Out any] interface {

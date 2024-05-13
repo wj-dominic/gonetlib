@@ -1,10 +1,12 @@
 package server
 
 import (
-	"gonetlib/logger"
-	"gonetlib/util/network"
 	"net"
 	"sync"
+
+	"github.com/wj-dominic/gonetlib/util/network"
+
+	"github.com/wj-dominic/gonetlib/logger"
 )
 
 type AcceptHandler interface {

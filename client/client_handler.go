@@ -1,9 +1,9 @@
 package client
 
 import (
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/session"
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/session"
 )
 
 type ClientHandler interface {
