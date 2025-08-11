@@ -3,10 +3,11 @@ package session
 import (
 	"bytes"
 	"fmt"
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/ringbuffer"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/ringbuffer"
 )
 
 const (

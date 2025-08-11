@@ -1,8 +1,8 @@
 package client
 
 import (
-	"gonetlib/logger"
-	"gonetlib/util/network"
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 type ClientBuilder interface {

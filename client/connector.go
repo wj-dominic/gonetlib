@@ -1,12 +1,13 @@
 package client
 
 import (
-	"gonetlib/logger"
-	"gonetlib/util/network"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 type ConnectHandler interface {

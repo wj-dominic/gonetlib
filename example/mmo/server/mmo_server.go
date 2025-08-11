@@ -2,12 +2,13 @@ package mmo_server
 
 import (
 	"fmt"
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/session"
-	"gonetlib/util"
 	"reflect"
 	"sync"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/session"
+	"github.com/wj-dominic/gonetlib/util"
 )
 
 type MMOServer struct {

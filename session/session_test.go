@@ -1,14 +1,15 @@
 package session_test
 
 import (
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/monitoring"
-	"gonetlib/session"
-	"gonetlib/util/snowflake"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+  "github.com/wj-dominic/gonetlib/monitoring"
+	"github.com/wj-dominic/gonetlib/session"
+	"github.com/wj-dominic/gonetlib/util/snowflake"
 )
 
 type ServerSession struct {

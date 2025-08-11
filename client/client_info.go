@@ -1,7 +1,7 @@
 package client
 
 import (
-	"gonetlib/util/network"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 type ClientInfo struct {

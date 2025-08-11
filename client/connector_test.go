@@ -1,12 +1,13 @@
 package client_test
 
 import (
-	"gonetlib/client"
-	"gonetlib/logger"
-	"gonetlib/util/network"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/client"
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 type ConnectHandler struct {

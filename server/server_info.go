@@ -1,7 +1,7 @@
 package server
 
 import (
-	"gonetlib/util/network"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 type ServerInfo struct {

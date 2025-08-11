@@ -1,18 +1,19 @@
 package server_test
 
 import (
-	"gonetlib/logger"
-	"gonetlib/message"
-	"gonetlib/server"
-	"gonetlib/session"
-	"gonetlib/util"
-	"gonetlib/util/network"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/message"
+	"github.com/wj-dominic/gonetlib/server"
+	"github.com/wj-dominic/gonetlib/session"
+	"github.com/wj-dominic/gonetlib/util"
+	"github.com/wj-dominic/gonetlib/util/network"
 )
 
 type TestServer struct {

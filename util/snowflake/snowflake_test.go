@@ -2,9 +2,10 @@ package snowflake_test
 
 import (
 	"fmt"
-	"gonetlib/util/snowflake"
 	"sync"
 	"testing"
+
+	"github.com/wj-dominic/gonetlib/util/snowflake"
 )
 
 func TestGenerateID(t *testing.T) {

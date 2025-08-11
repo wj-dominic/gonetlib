@@ -2,12 +2,13 @@ package task
 
 import (
 	"fmt"
-	"gonetlib/util"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/util"
 )
 
 type taskRunner struct {

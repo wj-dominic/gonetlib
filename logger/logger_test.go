@@ -1,9 +1,10 @@
 package logger_test
 
 import (
-	"gonetlib/logger"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
 )
 
 func TestLogger(t *testing.T) {

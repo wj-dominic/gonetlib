@@ -2,9 +2,10 @@ package stopwatch_test
 
 import (
 	"fmt"
-	"gonetlib/util/stopwatch"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/util/stopwatch"
 )
 
 func TestStopwatch(t *testing.T) {

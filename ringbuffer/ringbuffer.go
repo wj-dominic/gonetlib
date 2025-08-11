@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"gonetlib/util"
 	"log"
 	"reflect"
+
+	"github.com/wj-dominic/gonetlib/util"
 )
 
 const (

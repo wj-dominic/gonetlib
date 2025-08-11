@@ -1,10 +1,10 @@
 package server
 
 import (
-	"gonetlib/logger"
-	"gonetlib/monitoring"
-	"gonetlib/session"
-	"gonetlib/util/snowflake"
+	"github.com/wj-dominic/gonetlib/logger"
+  "github.com/wj-dominic/gonetlib/monitoring"
+	"github.com/wj-dominic/gonetlib/session"
+	"github.com/wj-dominic/gonetlib/util/snowflake"
 
 	"net"
 )

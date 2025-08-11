@@ -1,12 +1,13 @@
 package logger
 
 import (
-	"gonetlib/util"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/util"
 )
 
 type RollingInterval uint8

@@ -1,6 +1,6 @@
 package mmo_server
 
-import "gonetlib/session"
+import "github.com/wj-dominic/gonetlib/session"
 
 type INode interface {
 	Send(interface{})

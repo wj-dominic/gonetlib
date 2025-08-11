@@ -2,11 +2,12 @@ package session
 
 import (
 	"fmt"
-	"gonetlib/logger"
-	"gonetlib/util"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/util"
 )
 
 type SessionManager interface {

@@ -2,11 +2,12 @@ package task_test
 
 import (
 	"fmt"
-	"gonetlib/logger"
-	"gonetlib/task"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
+	"github.com/wj-dominic/gonetlib/task"
 )
 
 func TestTaskSummation(t *testing.T) {
