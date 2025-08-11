@@ -7,6 +7,7 @@ import (
 
 	"github.com/wj-dominic/gonetlib/logger"
 	"github.com/wj-dominic/gonetlib/message"
+  "github.com/wj-dominic/gonetlib/monitoring"
 	"github.com/wj-dominic/gonetlib/session"
 	"github.com/wj-dominic/gonetlib/util/snowflake"
 )
@@ -92,8 +93,15 @@ func TestSession(t *testing.T) {
 	server, client := net.Pipe()
 
 	sessionManager := session.NewSessionManager(_logger, 1000)
-	serverSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), server, &ServerSession{})
-	clientSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), client, &ClientSession{})
+	serverSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), server, &ServerSession{logger: _logger})
+	clientSession, _ := sessionManager.NewSession(snowflake.GenerateID(1), client, &ClientSession{logger: _logger})
+
+	monitor := monitoring.NewMonitor(_logger)
+	exporter := monitoring.NewDefaultExporter(monitor)
+	monitor.AddCollector(sessionManager)
+
+	monitor.Start()
+	exporter.Start()
 
 	if err := serverSession.Start(); err != nil {
 		t.Error(err)
