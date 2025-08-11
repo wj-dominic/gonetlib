@@ -16,6 +16,7 @@ type Session interface {
 	Setup(uint64, net.Conn, SessionHandler, SessionEvent) error
 	GetID() uint64
 	Send(interface{})
+	SessionMonitoringData() SessionMonitoringData
 }
 
 type SessionHandler interface {
@@ -45,6 +46,9 @@ type gonetSession struct {
 
 	handler SessionHandler
 	event   SessionEvent
+
+	// Monitoring area
+	monitoringData SessionMonitoringData
 }
 
 func newSession(logger logger.Logger) gonetSession {
@@ -59,6 +63,8 @@ func newSession(logger logger.Logger) gonetSession {
 
 		handler: nil,
 		event:   nil,
+
+		monitoringData: SessionMonitoringData{},
 	}
 }
 

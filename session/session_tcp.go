@@ -122,6 +122,9 @@ func (session *TCPSession) readAsync() {
 				}
 			}
 
+			session.monitoringData.RecvCount++
+			session.monitoringData.RecvBytes += uint64(packet.GetExpectedPayloadSize())
+
 			packet.Reset()
 		}
 	}
@@ -173,6 +176,9 @@ Loop:
 				if session.handler != nil {
 					session.handler.OnSend(session, sendBuffer.Bytes())
 				}
+
+				session.monitoringData.SendCount++
+				session.monitoringData.SendBytes += uint64(sentBytes)
 
 				sendBuffer.Reset()
 			}
@@ -246,6 +252,10 @@ func (session *TCPSession) Send(msg interface{}) {
 	packet.MakeHeader()
 
 	session.sendChannel <- packet.GetBuffer()
+}
+
+func (session *TCPSession) SessionMonitoringData() SessionMonitoringData {
+	return session.monitoringData
 }
 
 func (session *TCPSession) onRelease() {

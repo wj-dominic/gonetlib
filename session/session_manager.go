@@ -15,10 +15,11 @@ type SessionManager interface {
 }
 
 type sessionManager struct {
-	logger     logger.Logger
-	pool       sync.Pool
-	sessions   sync.Map
-	isDisposed int32
+	logger         logger.Logger
+	pool           sync.Pool
+	sessions       sync.Map
+	monitoringData MonitoringData
+	isDisposed     int32
 }
 
 func NewSessionManager(logger logger.Logger, limit uint32) *sessionManager {
@@ -29,7 +30,10 @@ func NewSessionManager(logger logger.Logger, limit uint32) *sessionManager {
 				return NewTcpSession(logger)
 			},
 		},
-		sessions:   sync.Map{},
+		sessions: sync.Map{},
+		monitoringData: MonitoringData{
+			BySession: make(map[uint64]SessionMonitoringData),
+		},
 		isDisposed: 0,
 	}
 }
@@ -83,4 +87,21 @@ func (s *sessionManager) OnRelease(sessionID uint64, session Session) {
 
 	//세션 풀에 삽입
 	s.pool.Put(session)
+}
+
+func (s *sessionManager) Collect() (interface{}, error) {
+	// 매번 초기화 방식으로 할지 고민(or NewSession, OnRelease에서 lock), session count를 관리하는 부분도 추가 고려
+	s.monitoringData.BySession = make(map[uint64]SessionMonitoringData)
+	s.monitoringData.ActiveSessions = 0
+
+	s.sessions.Range(func(key, value any) bool {
+		session := value.(Session)
+
+		s.monitoringData.ActiveSessions++
+		s.monitoringData.BySession[session.GetID()] = session.SessionMonitoringData()
+
+		return true
+	})
+
+	return s.monitoringData, nil
 }

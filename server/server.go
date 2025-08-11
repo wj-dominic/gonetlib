@@ -2,6 +2,7 @@ package server
 
 import (
 	"gonetlib/logger"
+	"gonetlib/monitoring"
 	"gonetlib/session"
 	"gonetlib/util/snowflake"
 
@@ -19,19 +20,29 @@ type gonetServer struct {
 	sessions session.SessionManager
 	handler  ServerHandler
 	logger   logger.Logger
+	monitor  *monitoring.Monitor
+	exporter monitoring.Exporter
 }
 
 func newServer(logger logger.Logger, info ServerInfo, handler ServerHandler) Server {
 	server := &gonetServer{
 		info:     info,
 		acceptor: nil,
-		sessions: session.NewSessionManager(logger, info.MaxSession),
-		handler:  handler,
-		logger:   logger,
+		// sessions: session.NewSessionManager(logger, info.MaxSession),
+		handler: handler,
+		logger:  logger,
+		monitor: monitoring.NewMonitor(logger),
 	}
 
 	acceptor := NewAcceptor(logger, info.Protocols, info.Address, server)
 	server.acceptor = acceptor
+
+	sm := session.NewSessionManager(logger, info.MaxSession)
+
+	server.exporter = monitoring.NewDefaultExporter(server.monitor)
+	server.monitor.AddCollector(sm)
+
+	server.sessions = sm
 
 	return server
 }
@@ -50,6 +61,9 @@ func (s *gonetServer) Run() bool {
 			return false
 		}
 	}
+
+	s.monitor.Start()
+	s.exporter.Start()
 
 	s.logger.Info("Success to run server")
 	return true
