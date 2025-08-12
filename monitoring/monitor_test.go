@@ -1,10 +1,11 @@
 package monitoring
 
 import (
-	"gonetlib/logger"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
 )
 
 type SampleMonitoringData struct {

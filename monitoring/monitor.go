@@ -2,9 +2,10 @@ package monitoring
 
 import (
 	"encoding/json"
-	"gonetlib/logger"
 	"sync"
 	"time"
+
+	"github.com/wj-dominic/gonetlib/logger"
 )
 
 type Collector interface {
